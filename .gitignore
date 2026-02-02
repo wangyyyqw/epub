@@ -1,0 +1,37 @@
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+pnpm-debug.log
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+
+# Mac
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Tauri/Rust
+src-tauri/target/
+src-tauri/gen/
+src-tauri/Cargo.lock
+
+# App Specific
+txt2epub-app/backend/build/
+txt2epub-app/backend/dist/
+txt2epub-app/backend/*.spec
+txt2epub-app/dist/
+
+# Binaries (Depending on preference, usually ignored if built)
+# Ignoring the specific binaries we built
+src-tauri/binaries/converter-backend-*
+src-tauri/bin/converter-backend-*
+
+# Editor
+.vscode/
+.idea/

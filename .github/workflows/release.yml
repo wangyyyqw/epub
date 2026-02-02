@@ -1,0 +1,55 @@
+name: Release
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    strategy:
+      matrix:
+        platform: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.9' 
+      - uses: dtolnay/rust-toolchain@stable
+      
+      # Build Python Sidecar & Rename
+      - name: Install Backend Dep & Package
+        shell: bash
+        run: |
+          pip install -r txt2epub-app/backend/requirements.txt
+          pip install pyinstaller
+          pyinstaller txt2epub-app/backend/main.py --name converter-backend --onefile --distpath txt2epub-app/src-tauri/binaries
+          
+          # Get Rust target triple
+          target=$(rustc -vV | grep host | cut -d ' ' -f 2)
+          echo "Target triple: $target"
+          
+          # Rename binary
+          if [ "${{ runner.os }}" == "Windows" ]; then
+            move "txt2epub-app/src-tauri/binaries/converter-backend.exe" "txt2epub-app/src-tauri/binaries/converter-backend-$target.exe"
+          else
+            mv "txt2epub-app/src-tauri/binaries/converter-backend" "txt2epub-app/src-tauri/binaries/converter-backend-$target"
+          fi
+      
+      # Install Frontend Deps
+      - name: Install Frontend Deps
+        working-directory: txt2epub-app
+        run: npm install
+
+      # Build & Release Tauri App
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'App ${{ github.ref_name }}'
+          args: ${{ matrix.platform == 'macos-latest' && '--target universe-apple-darwin' || '' }}
+          projectPath: ./txt2epub-app
