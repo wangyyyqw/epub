@@ -63,6 +63,47 @@ async fn convert_book(
 }
 
 #[tauri::command]
+async fn run_epub_tool(
+    app: tauri::AppHandle,
+    operation: String,
+    input_path: String,
+    font_path: Option<String>,
+    regex_pattern: Option<String>
+) -> Result<String, String> {
+    let mut cmd = app
+        .shell()
+        .sidecar("converter-backend")
+        .map_err(|e| e.to_string())?
+        .args([
+            "--plugin", "epub_tool",
+            "--operation", &operation,
+            "--input-path", &input_path
+        ]);
+
+    if let Some(font) = font_path {
+        cmd = cmd.args(["--font-path", &font]);
+    }
+
+    if let Some(regex) = regex_pattern {
+        cmd = cmd.args(["--regex-pattern", &regex]);
+    }
+
+    let (mut rx, _child) = cmd.spawn().map_err(|e| e.to_string())?;
+    let mut output_text = String::new();
+
+    while let Some(event) = rx.recv().await {
+         if let CommandEvent::Stdout(line) = event {
+            let line_str = String::from_utf8_lossy(&line);
+            output_text.push_str(&line_str);
+        } else if let CommandEvent::Stderr(line) = event {
+            let line_str = String::from_utf8_lossy(&line);
+            output_text.push_str(&line_str);
+        }
+    }
+    Ok(output_text)
+}
+
+#[tauri::command]
 async fn scan_chapters(
     app: tauri::AppHandle,
     txt_path: String
@@ -96,7 +137,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![convert_book, scan_chapters])
+        .invoke_handler(tauri::generate_handler![convert_book, scan_chapters, run_epub_tool])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

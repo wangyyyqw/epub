@@ -8,27 +8,32 @@ A modern, localized TXT to EPUB converter built with Tauri, React, and Python, f
 
 ## ✨ 特性 (Features)
 
-- **🔒完全本地处理**: 所有转换都在本地完成，无需上传文件，保护隐私。
-- **🧠 智能章节识别**:
-  - 内置多种预设正则，完美支持：
-    - 中文数字标题 (第十五章、第一千零一章)
-    - 阿拉伯数字标题 (第100章、Chapter 1)
-    - 纯数字标题 (1. 标题、1、标题)
-    - 特殊符号标题 (【第一章】、☆、标题)
-    - 卷、部、集、篇 (卷一、第一部)
-    - 序言、前言、后记、尾声 (智能识别非正文部分)
-    - 分页/分节阅读标记识别
-- **📑 多级目录支持 (Multi-level TOC)**:
-  - 扫描后自动列出匹配到的规则。
-  - **自定义标题级别**: 比如将“卷”设为 h1，“章”设为 h2，“节”设为 h3，生成层级分明的 EPUB 目录。
-  - 自由启用/禁用特定规则。
+## ✨ 特性 (Features)
+
+- **🎨 现代化 "Cosmic Glass" 界面**:
+  - **星空毛玻璃设计**: 采用深色磨砂玻璃质感，搭配紫罗兰微光渐变，提供沉浸式体验。
+  - **流畅交互**: 底部固定操作栏、平滑的过渡动画、以及优化的滚动体验。
+  - **可视化组件**: 精致的文件上传区域、胶囊式按钮和清晰的进度展示。
+
+- **🧠 智能章节识别 (Smart Detection)**:
+  - **实时预览**: 扫描时直接显示匹配到的规则示例（如 "第1章..."），所见即所得。
+  - **多级目录支持**:
+    - 自定义标题级别 (h1 - h6)，比如将“卷”设为 h1，“章”设为 h2。
+    - 自由启用/禁用特定规则。
+  - **内置丰富正则**:
+    - 中文数字/阿拉伯数字标题 (第十五章、Chapter 1)
+    - 纯数字/特殊符号标题 (1. 标题、【第一章】)
+    - 结构性标题 (卷、部、序言、后记)
+
+- **� 标准化 EPUB 输出**:
+  - **无干扰阅读**: 生成的 EPUB 不包含强制插入的 HTML 目录页 (nav)，阅读体验更连贯。
+  - **标准结构**: 严格遵循 EPUB 3 标准 (OEBPS/META-INF)，兼容所有主流阅读器 (Apple Books, Kindle, etc.)。
+
 - **🛠️ 强大的清理功能**:
   - 自动修复缩进。
   - 移除多余空行。
-- **🎨 现代化界面**:
-  - 支持拖拽上传。
-  - 实时转换进度显示。
-  - 自动元数据提取 (书名、作者)。
+  - 自动提取书名与作者。
+- **🔒完全本地处理**: 所有转换都在本地完成，无需上传文件，保护隐私。
 
 ## 🚀 安装 (Installation)
 
@@ -69,9 +74,38 @@ A modern, localized TXT to EPUB converter built with Tauri, React, and Python, f
 4. **打包应用**:
    ```bash
    npm run tauri build
+   npm run tauri build
    ```
 
-## 📝 鸣谢
+## � 插件扩展 (Plugin Extension)
+
+本项目采用插件化架构，方便扩展新的转换功能。
+
+1. **创建插件目录**:
+   在 `backend/plugins/` 下创建一个新目录（例如 `docx_to_epub`）。
+
+2. **实现插件逻辑**:
+   在该目录下创建 `plugin.py`，需引入 `BasePlugin`:
+   ```python
+   from core.plugin_base import BasePlugin
+   
+   class DocxToEpubPlugin(BasePlugin):
+       # 实现抽象方法...
+   ```
+   并实现以下方法：
+   - `name`: 插件唯一标识 (ID)。
+   - `description`: 插件描述。
+   - `register_arguments(parser)`: 注册该插件需要的命令行参数。
+   - `run(args)`: 实现具体的转换逻辑。
+
+3. **注册插件**:
+   在 `backend/main.py` 的 `plugins` 字典中添加新插件：
+   ```python
+   plugins = {
+       "txt2epub": TxtToEpubPlugin(),
+       "docx2epub": DocxToEpubPlugin(),  # 新增插件
+   }
+   ```
 
 本项目使用了以下开源技术：
 - [Tauri](https://tauri.app/)

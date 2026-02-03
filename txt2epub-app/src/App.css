@@ -1,568 +1,358 @@
 /* ==========================================================================
-   Layered Glass Design System for txt2epub
+   Cosmic Glass Design System
    ========================================================================== */
 
-/* Global Design Tokens */
-:root {
-  /* Day Mode (Day Light) */
-  --bg-app: #f5f5f7;
-  /* 云白 - Apple systemGray6 */
-  --bg-panel: rgba(255, 255, 255, 0.72);
-  /* 纯白 + 毛玻璃透明度 */
-  --bg-panel-solid: #ffffff;
-  --bg-input: #e8e8ed;
-  /* 雾灰 - 轻微凹陷效果 */
-  --bg-input-focus: #ffffff;
-  --bg-hover: rgba(0, 102, 204, 0.08);
+/* Import Inter Font */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
-  --text-main: #1d1d1f;
-  /* 墨黑 - 近黑带暖调 */
-  --text-muted: #86868b;
-  /* 银灰 - systemGray */
+:root {
+  /* Colors */
+  --bg-app: #f8f9fc;
+  --bg-panel: rgba(255, 255, 255, 0.65);
+  --bg-panel-solid: #ffffff;
+  --bg-glass: rgba(255, 255, 255, 0.4);
+  --bg-input: rgba(255, 255, 255, 0.8);
+  --bg-input-focus: #ffffff;
+
+  --text-main: #1a1c23;
+  --text-muted: #64748b;
   --text-inverse: #ffffff;
 
-  --border-light: rgba(0, 0, 0, 0.08);
-  --border-medium: rgba(0, 0, 0, 0.12);
-  --border-focus: #0066cc;
-  --border-glass: rgba(255, 255, 255, 0.4);
-  /* 玻璃边缘高光 */
+  /* Gradient Accents (Violet -> Blue) */
+  --accent-gradient: linear-gradient(135deg, #6366f1 0%, #3b82f6 100%);
+  --accent-color: #4f46e5;
+  --accent-glow: rgba(99, 102, 241, 0.25);
 
-  --accent-color: #0066cc;
-  /* 科技蓝 */
-  --accent-hover: #0052a3;
-  --accent-glow: rgba(0, 102, 204, 0.15);
+  /* Borders */
+  --border-light: rgba(255, 255, 255, 0.5);
+  --border-medium: rgba(148, 163, 184, 0.2);
+  --border-active: #818cf8;
 
-  /* 阴影层级 */
-  --shadow-float: 0 4px 12px rgba(0, 0, 0, 0.08);
-  --shadow-card: 0 8px 24px rgba(0, 0, 0, 0.12);
-  --shadow-panel: 0 12px 32px rgba(0, 0, 0, 0.16);
+  /* Shadows */
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.12);
+  --shadow-glow: 0 0 20px rgba(99, 102, 241, 0.2);
 
+  /* Radius */
   --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
-
-  --log-bg: #1e1e1e;
-  --log-text: #e6edf3;
-
-  /* Typography */
-  --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', system-ui, sans-serif;
-  --font-mono: 'SF Mono', ui-monospace, 'Cascadia Code', Menlo, monospace;
+  --radius-md: 16px;
+  --radius-lg: 24px;
 
   /* Transitions */
-  --transition-fast: 150ms ease;
-  --transition-smooth: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-spring: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Night Mode (Night Craft) */
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg-app: #0f1419;
-    /* 深空黑 */
-    --bg-panel: rgba(28, 33, 40, 0.72);
-    /* 石墨灰 + 毛玻璃 */
-    --bg-panel-solid: #1c2128;
-    --bg-input: #161b22;
-    /* 浮层灰 - 凹陷区域 */
-    --bg-input-focus: #1c2128;
-    --bg-hover: rgba(88, 166, 255, 0.1);
+    --bg-app: #0f172a;
+    --bg-panel: rgba(30, 41, 59, 0.7);
+    --bg-panel-solid: #1e293b;
+    --bg-glass: rgba(15, 23, 42, 0.6);
+    --bg-input: rgba(15, 23, 42, 0.6);
+    --bg-input-focus: #1e293b;
 
-    --text-main: #e6edf3;
-    /* 月光白 */
-    --text-muted: #8b949e;
-    /* 雾灰 */
+    --text-main: #f1f5f9;
+    --text-muted: #94a3b8;
 
-    --border-light: rgba(255, 255, 255, 0.06);
+    --border-light: rgba(255, 255, 255, 0.05);
     --border-medium: rgba(255, 255, 255, 0.1);
-    --border-focus: #58a6ff;
-    --border-glass: rgba(255, 255, 255, 0.08);
 
-    --accent-color: #58a6ff;
-    /* 星蓝 */
-    --accent-hover: #79b8ff;
-    --accent-glow: rgba(88, 166, 255, 0.2);
-
-    /* 夜间阴影增强 20% */
-    --shadow-float: 0 4px 12px rgba(0, 0, 0, 0.28);
-    --shadow-card: 0 8px 24px rgba(0, 0, 0, 0.32);
-    --shadow-panel: 0 12px 32px rgba(0, 0, 0, 0.36);
-
-    --log-bg: #0d1117;
+    --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.4);
   }
 }
 
-/* ==========================================================================
-   Base Reset & Typography
-   ========================================================================== */
-
-body,
-html,
-#root {
-  height: 100%;
+body {
   margin: 0;
-  padding: 0;
-  overflow: hidden;
-  font-family: var(--font-sans);
-  font-size: 14px;
-  line-height: 1.47;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  font-family: 'Inter', system-ui, sans-serif;
   background-color: var(--bg-app);
   color: var(--text-main);
-  transition: background-color var(--transition-smooth), color var(--transition-smooth);
+  background-image:
+    radial-gradient(circle at 10% 20%, rgba(99, 102, 241, 0.08) 0%, transparent 40%),
+    radial-gradient(circle at 90% 80%, rgba(59, 130, 246, 0.08) 0%, transparent 40%);
+  height: 100vh;
+  overflow: hidden;
 }
 
-/* ==========================================================================
-   Layout Structure
-   ========================================================================== */
-
+/* Layout */
 .app-container {
   display: flex;
   height: 100vh;
-  width: 100vw;
 }
 
-/* 左侧面板 - 前景层（毛玻璃悬浮） */
-.left-panel {
-  width: 380px;
-  min-width: 340px;
-  padding: 24px;
+/* Sidebar */
+.sidebar {
+  width: 80px;
   background: var(--bg-panel);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border-right: 1px solid var(--border-glass);
-  box-shadow: var(--shadow-panel);
+  border-right: 1px solid var(--border-light);
+  display: flex;
+  flex-direction: column;
+  padding: 20px 10px;
+  gap: 16px;
+  align-items: center;
+  z-index: 20;
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+
+.sidebar-item {
+  width: 50px;
+  height: 50px;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--text-muted);
+  transition: all 0.2s ease;
+  font-size: 10px;
+  gap: 4px;
+}
+
+.sidebar-item:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: var(--text-main);
+}
+
+.sidebar-item.active {
+  background: var(--accent-gradient);
+  color: white;
+  box-shadow: var(--shadow-glow);
+}
+
+.main-content {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+/* Left Panel - Glassmorphism */
+/* Adjusted width since sidebar takes space */
+.left-panel {
+  width: 360px;
+  padding: 32px;
+  background: var(--bg-panel);
+  /* Remove backdrop filter here if it layers weirdly, but keep for now */
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-right: 1px solid var(--border-light);
   display: flex;
   flex-direction: column;
   gap: 20px;
-  overflow-y: auto;
-  position: relative;
   z-index: 10;
-}
-
-/* 顶部高光线 - 模拟光线折射 */
-.left-panel::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, var(--border-glass), transparent);
-}
-
-/* 右侧面板 - 中景层 */
-.right-panel {
-  flex: 1;
-  padding: 24px;
-  background-color: var(--bg-app);
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+  box-shadow: 20px 0 40px -20px rgba(0, 0, 0, 0.05);
+  max-height: 100vh;
   overflow: hidden;
 }
 
-/* ==========================================================================
-   Typography
-   ========================================================================== */
+.left-panel-scroll {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding-right: 4px;
+  margin-right: -4px;
+}
 
+.left-panel-footer {
+  flex-shrink: 0;
+  padding-top: 20px;
+  border-top: 1px solid var(--border-medium);
+  background: transparent;
+}
+
+.right-panel {
+  flex: 1;
+  padding: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+/* Typography */
 h1 {
-  font-size: 22px;
-  font-weight: 700;
-  letter-spacing: -0.021em;
-  margin: 0 0 8px 0;
-  color: var(--text-main);
+  font-size: 28px;
+  font-weight: 800;
+  background: var(--accent-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin: 0 0 4px 0;
+  letter-spacing: -0.03em;
 }
 
 .section-title {
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 11px;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.1em;
   color: var(--text-muted);
   margin-bottom: 12px;
-  display: flex;
-  align-items: center;
 }
 
-.advanced-section-title {
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-muted);
-  margin-bottom: 8px;
-}
-
-/* ==========================================================================
-   File Drop Area
-   ========================================================================== */
-
+/* File Drop Area */
 .file-drop-area {
-  padding: 32px 24px;
   border: 2px dashed var(--border-medium);
   border-radius: var(--radius-md);
-  background: var(--accent-glow);
+  padding: 20px 24px;
   text-align: center;
+  transition: all 0.3s var(--ease-spring);
+  background: var(--bg-input);
   cursor: pointer;
-  transition: all var(--transition-smooth);
   position: relative;
   overflow: hidden;
 }
 
-.file-drop-area::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
-  transition: left 0.5s;
-}
-
 .file-drop-area:hover {
-  border-style: solid;
   border-color: var(--accent-color);
-  background: rgba(var(--accent-color), 0.1);
+  background: rgba(99, 102, 241, 0.05);
   transform: translateY(-2px);
-  box-shadow: var(--shadow-card);
-}
-
-.file-drop-area:hover::before {
-  left: 100%;
-}
-
-.file-drop-area:active {
-  transform: translateY(0) scale(0.98);
-  box-shadow: var(--shadow-float);
+  box-shadow: var(--shadow-md);
 }
 
 .file-name {
-  font-size: 15px;
   font-weight: 600;
   color: var(--text-main);
+  background: rgba(99, 102, 241, 0.1);
+  padding: 6px 16px;
+  border-radius: 20px;
+  display: inline-block;
 }
 
-.file-path {
-  font-size: 11px;
-  color: var(--text-muted);
-  margin-top: 6px;
-  word-break: break-all;
-  opacity: 0.8;
-}
-
-/* ==========================================================================
-   Form Elements
-   ========================================================================== */
-
-input[type="text"],
-input:not([type]) {
+/* Inputs */
+input[type="text"] {
   width: 100%;
-  padding: 10px 14px;
-  font-size: 14px;
-  font-family: var(--font-sans);
-  background: var(--bg-input);
-  border: 1px solid var(--border-light);
+  padding: 12px 16px;
+  border: 1px solid var(--border-medium);
   border-radius: var(--radius-sm);
+  background: var(--bg-input);
   color: var(--text-main);
+  font-size: 14px;
+  transition: all 0.2s ease;
   box-sizing: border-box;
-  transition: all var(--transition-fast);
-  box-shadow: var(--shadow-float);
 }
 
-input:focus {
+input[type="text"]:focus {
   outline: none;
   background: var(--bg-input-focus);
   border-color: var(--accent-color);
-  box-shadow: 0 0 0 3px var(--accent-glow), var(--shadow-float);
+  box-shadow: 0 0 0 3px var(--accent-glow);
 }
 
-input::placeholder {
-  color: var(--text-muted);
-  opacity: 0.7;
-}
-
-/* Checkbox styling */
-input[type="checkbox"] {
-  appearance: none;
-  -webkit-appearance: none;
-  width: 18px;
-  height: 18px;
-  border: 2px solid var(--border-medium);
-  border-radius: 5px;
-  background: var(--bg-input);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  position: relative;
-}
-
-input[type="checkbox"]:checked {
-  background: var(--accent-color);
-  border-color: var(--accent-color);
-}
-
-input[type="checkbox"]:checked::after {
-  content: '✓';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+/* Buttons */
+button.primary {
+  width: 100%;
+  padding: 16px;
+  background: var(--accent-gradient);
   color: white;
-  font-size: 12px;
-  font-weight: bold;
-}
-
-input[type="checkbox"]:hover {
-  border-color: var(--accent-color);
-}
-
-label {
-  color: var(--text-main);
-  cursor: pointer;
-}
-
-/* ==========================================================================
-   Buttons
-   ========================================================================== */
-
-button {
-  font-family: var(--font-sans);
-  font-size: 14px;
-  font-weight: 600;
-  padding: 12px 20px;
   border: none;
   border-radius: var(--radius-md);
+  font-weight: 600;
+  font-size: 15px;
   cursor: pointer;
-  transition: all var(--transition-fast);
-}
-
-button.primary {
-  background: linear-gradient(180deg, var(--accent-color), var(--accent-hover));
-  color: var(--text-inverse);
-  box-shadow: var(--shadow-card);
+  transition: all 0.3s var(--ease-spring);
+  box-shadow: var(--shadow-sm);
+  position: relative;
+  overflow: hidden;
 }
 
 button.primary:hover:not(:disabled) {
-  filter: brightness(1.1);
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-panel);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-glow);
 }
 
 button.primary:active:not(:disabled) {
   transform: scale(0.98);
-  box-shadow: var(--shadow-float);
 }
 
-button:disabled {
-  opacity: 0.5;
+button.primary:disabled {
+  opacity: 0.6;
   cursor: not-allowed;
+  filter: grayscale(0.5);
 }
 
-/* ==========================================================================
-   Log Container
-   ========================================================================== */
-
-.log-container {
-  flex: 1;
-  min-height: 200px;
-  max-height: 45%;
-  background: var(--log-bg);
+/* Advanced Options */
+.advanced-options-container {
+  background: var(--bg-glass);
+  border: 1px solid var(--border-medium);
   border-radius: var(--radius-md);
-  padding: 16px;
-  overflow-y: auto;
-  font-family: var(--font-mono);
-  font-size: 12px;
-  line-height: 1.6;
-  color: var(--log-text);
-  box-shadow: var(--shadow-card);
+  padding: 20px;
+  animation: fadeIn 0.3s ease;
 }
 
-.log-entry {
-  padding: 6px 10px;
-  margin-bottom: 4px;
-  background: rgba(255, 255, 255, 0.03);
-  border-left: 3px solid var(--accent-color);
-  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-  animation: slideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-@keyframes slideIn {
+@keyframes fadeIn {
   from {
     opacity: 0;
-    transform: translateX(-10px);
+    transform: translateY(-10px);
   }
 
   to {
     opacity: 1;
-    transform: translateX(0);
+    transform: translateY(0);
   }
 }
 
-/* ==========================================================================
-   Chapter List
-   ========================================================================== */
+/* Right Panel Logs */
+.log-container {
+  flex: 1;
+  background: var(--bg-panel-solid);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-medium);
+  padding: 20px;
+  font-family: 'SF Mono', monospace;
+  font-size: 13px;
+  box-shadow: var(--shadow-sm);
+  overflow-y: auto;
+}
 
+.log-entry {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-medium);
+  color: var(--text-muted);
+}
+
+.log-entry:last-child {
+  border-bottom: none;
+}
+
+/* Chapter List */
 .chapter-list-container {
   flex: 1;
-  overflow-y: auto;
-  padding: 12px;
-  background: var(--log-bg);
+  background: var(--bg-panel-solid);
   border-radius: var(--radius-md);
-  font-family: var(--font-mono);
-  font-size: 12px;
-  box-shadow: var(--shadow-card);
+  border: 1px solid var(--border-medium);
+  padding: 20px;
+  overflow-y: auto;
+  box-shadow: var(--shadow-sm);
 }
 
 .chapter-list-item {
   display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 8px 10px;
-  margin-bottom: 2px;
-  background: rgba(255, 255, 255, 0.02);
+  padding: 4px 8px;
   border-radius: var(--radius-sm);
-  color: var(--log-text);
-  transition: background-color var(--transition-fast);
+  transition: background 0.2s;
+  cursor: default;
 }
 
 .chapter-list-item:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--bg-app);
 }
 
 .chapter-index {
   color: var(--accent-color);
-  font-weight: 600;
-  min-width: 40px;
-  opacity: 0.7;
+  font-weight: 700;
+  width: 40px;
 }
 
-.chapter-title {
-  flex: 1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* ==========================================================================
-   Advanced Options Container
-   ========================================================================== */
-
-.advanced-options-container {
-  background: var(--bg-input);
-  padding: 16px;
-  border-radius: var(--radius-md);
-  margin-top: 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  border: 1px solid var(--border-light);
-}
-
-.advanced-section-divider {
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid var(--border-light);
-}
-
-/* ==========================================================================
-   Scan Results
-   ========================================================================== */
-
-.scan-results-container {
-  margin-top: 12px;
-  max-height: 180px;
-  overflow-y: auto;
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-sm);
-  padding: 10px;
-  background: var(--bg-input);
-}
-
-.scan-results-inline {
-  max-height: 140px;
-  overflow-y: auto;
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-sm);
-  padding: 8px;
-  background: var(--bg-panel-solid);
-}
-
-.scan-title {
-  font-size: 13px;
-  font-weight: 600;
-  margin-bottom: 8px;
-  color: var(--text-main);
-}
-
-.scan-result-item {
-  padding: 10px 12px;
-  font-size: 13px;
-  cursor: pointer;
-  border-radius: var(--radius-sm);
-  margin-bottom: 4px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  color: var(--text-main);
-  background: transparent;
-  transition: all var(--transition-fast);
-  border: 1px solid transparent;
-}
-
-.scan-result-item:hover {
-  background: var(--bg-hover);
-  border-color: var(--border-light);
-}
-
-.scan-result-item.selected {
-  background: var(--accent-glow);
-  border-color: var(--accent-color);
-  color: var(--accent-color);
-  font-weight: 500;
-}
-
-.scan-preview-note {
-  margin-top: 8px;
-  font-size: 12px;
-  color: var(--text-muted);
-  padding: 8px;
-  background: rgba(0, 0, 0, 0.03);
-  border-radius: var(--radius-sm);
-  border-left: 3px solid var(--accent-color);
-}
-
-@media (prefers-color-scheme: dark) {
-  .scan-preview-note {
-    background: rgba(255, 255, 255, 0.03);
-  }
-}
-
-/* ==========================================================================
-   Progress Bar
-   ========================================================================== */
-
-.progress-bar-bg {
-  height: 6px;
-  width: 100%;
-  background: var(--border-medium);
-  border-radius: 3px;
-  overflow: hidden;
-}
-
-.progress-bar-fill {
-  height: 100%;
-  background: linear-gradient(90deg, var(--accent-color), var(--accent-hover));
-  transition: width var(--transition-smooth);
-  border-radius: 3px;
-}
-
-/* ==========================================================================
-   Scrollbar Styling
-   ========================================================================== */
-
+/* Scrollbars */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
+  background-color: transparent;
 }
 
 ::-webkit-scrollbar-track {
@@ -570,10 +360,20 @@ button:disabled {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--border-medium);
-  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--text-muted);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+@media (prefers-color-scheme: dark) {
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.25);
+  }
 }
