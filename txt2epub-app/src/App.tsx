@@ -12,8 +12,15 @@ interface ScanResult {
   example?: string;
 }
 
+// Start with 'converter' or 'tool'
+type ViewMode = 'converter' | 'tool';
+
 function App() {
 
+  const [viewMode, setViewMode] = useState<ViewMode>('converter');
+  const [toolOperation, setToolOperation] = useState<string>('reformat');
+
+  // Data States
   const [txtPath, setTxtPath] = useState("");
   const [title, setTitle] = useState("");
   const [author, setAuthor] = useState("");
@@ -29,26 +36,21 @@ function App() {
   const [disabledPatterns, setDisabledPatterns] = useState<Set<string>>(new Set());
 
   // Scanning State
-  const [allScanResults, setAllScanResults] = useState<ScanResult[]>([]);  // Raw unfiltered results
-  const [scanResults, setScanResults] = useState<ScanResult[]>([]);  // Filtered results (enabled patterns)
-  const [selectedPatternIndex, setSelectedPatternIndex] = useState<number>(-1);
-  const [patternLevels, setPatternLevels] = useState<Record<string, number>>({});  // Pattern name -> heading level (1-6)
+  const [allScanResults, setAllScanResults] = useState<ScanResult[]>([]);
+  const [scanResults, setScanResults] = useState<ScanResult[]>([]);
+  const [patternLevels] = useState<Record<string, number>>({});
 
-  // Navigation & Toolbox State
-  const [activeTab, setActiveTab] = useState<'converter' | 'toolbox'>('converter');
-  const [toolOperation, setToolOperation] = useState<string>('reformat');
+  // Tool State
   const [toolInputPath, setToolInputPath] = useState('');
   const [toolFontPath, setToolFontPath] = useState('');
   const [toolRegexPattern, setToolRegexPattern] = useState('\\[(\\d+)\\]');
 
   const logEndRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll to bottom of logs
   useEffect(() => {
     logEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [logs]);
 
-  // Re-filter when disabledPatterns changes (no re-scan needed)
   useEffect(() => {
     if (allScanResults.length > 0) {
       const filtered = allScanResults.filter(r => !disabledPatterns.has(r.name));
@@ -61,7 +63,6 @@ function App() {
   }
 
   function parseProgress(line: string) {
-    // Expected format: "PROGRESS: 10% (Description)"
     const match = line.match(/PROGRESS:\s*(\d+)%/);
     if (match) {
       setProgress(parseInt(match[1]));
@@ -71,54 +72,39 @@ function App() {
   async function scanFile(path: string) {
     setScanResults([]);
     setAllScanResults([]);
-    setSelectedPatternIndex(-1);
     addLog("正在扫描章节结构...");
 
     try {
       const jsonResult = await invoke("scan_chapters", { txtPath: path });
-
-      // Try to handle both old and new format
       let results: ScanResult[] = [];
-
       try {
         const parsed = JSON.parse(jsonResult as string);
         if (Array.isArray(parsed)) {
-          // Old format: direct array
           results = parsed;
         } else if (parsed.patterns) {
-          // New format: {patterns: [], suggested_hierarchy: []}
           results = parsed.patterns || [];
         }
       } catch (parseErr) {
         addLog(`[ERROR] JSON解析失败: ${parseErr}`);
       }
 
-      // Store ALL results with matches for checkbox display
       const matchedResults = results.filter(r => r.count > 0);
       matchedResults.sort((a, b) => b.count - a.count);
       setAllScanResults(matchedResults);
-
-      // Filter out disabled patterns
       const filteredResults = matchedResults.filter(r => !disabledPatterns.has(r.name));
       setScanResults(filteredResults);
 
-      // Log summary
       const totalChapters = filteredResults.reduce((sum, r) => sum + r.count, 0);
       if (filteredResults.length > 0) {
         addLog(`扫描完成，发现 ${filteredResults.length} 个匹配规则，共 ${totalChapters} 个章节标记`);
       } else {
         addLog("扫描完成，未发现匹配章节。");
-
       }
     } catch (e) {
       addLog(`扫描失败: ${e}`);
     }
   }
 
-  function handlePatternSelect(index: number) {
-    setSelectedPatternIndex(index);
-    setCustomRegex(scanResults[index].pattern);
-  }
 
   async function selectTxt() {
     try {
@@ -130,12 +116,8 @@ function App() {
         const path = selected as string;
         setTxtPath(path);
         addLog(`已选择文件: ${path}`);
-
-        // Auto-guess title
         const filename = path.split(/[\\/]/).pop()?.replace('.txt', '') || "";
         setTitle(filename);
-
-        // Trigger Scan
         scanFile(path);
       }
     } catch (err) {
@@ -163,8 +145,6 @@ function App() {
       addLog(`开始转换...`);
       addLog(`输出路径: ${epubPath}`);
 
-      // Collect ALL enabled patterns with their levels
-      // Format: pattern:level|||pattern:level (e.g., ^第.+章:1|||^第.+节:2)
       const patternsWithLevels = scanResults.map(r => {
         const level = patternLevels[r.name] || 1;
         return `${r.pattern}:${level}`;
@@ -191,8 +171,6 @@ function App() {
         fixIndent: fixIndent
       });
 
-
-
       const lines = (result as string).split('\n');
       lines.forEach(line => {
         if (line.trim()) {
@@ -203,7 +181,6 @@ function App() {
           }
         }
       });
-
       addLog("转换任务已完成。");
       setProgress(100);
     } catch (error) {
@@ -249,7 +226,6 @@ function App() {
       addLog("错误: 请先选择 EPUB 文件。");
       return;
     }
-
     if (toolOperation === 'encrypt' && !toolFontPath) {
       addLog("提示: 加密操作建议选择字体文件");
     }
@@ -282,401 +258,217 @@ function App() {
     }
   }
 
+  // Helper to switch modes
+  const switchTool = (op: string) => {
+    setViewMode('tool');
+    setToolOperation(op);
+  };
+
+  const switchToConverter = () => {
+    setViewMode('converter');
+  };
+
   return (
     <div className="app-container" style={{ animation: 'fadeIn 0.5s ease-out' }}>
-      {/* Sidebar Navigation */}
-      <div className="sidebar">
+
+      {/* LEFT NAVIGATION SIDEBAR */}
+      <div className="sidebar glass-panel">
+        <h2 style={{ fontSize: '18px', margin: '0 0 10px 16px', color: 'var(--accent-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          TXT2EPUB
+        </h2>
+
         <div
-          className={`sidebar-item ${activeTab === 'converter' ? 'active' : ''}`}
-          onClick={() => setActiveTab('converter')}
-          title="TXT 转换器"
+          className={`sidebar-item ${viewMode === 'converter' ? 'active' : ''}`}
+          onClick={switchToConverter}
         >
-          <span style={{ fontSize: '20px' }}>📄</span>
-          <span>转换</span>
+          <span>TXT 转 EPUB</span>
         </div>
-        <div
-          className={`sidebar-item ${activeTab === 'toolbox' ? 'active' : ''}`}
-          onClick={() => setActiveTab('toolbox')}
-          title="EPUB 工具箱"
-        >
-          <span style={{ fontSize: '20px' }}>🛠️</span>
-          <span>工具</span>
+
+        <div className="nav-group-title">基础处理</div>
+        <div className={`sidebar-item ${viewMode === 'tool' && toolOperation === 'reformat' ? 'active' : ''}`} onClick={() => switchTool('reformat')}>
+          <span>重排 (Reformat)</span>
+        </div>
+        <div className={`sidebar-item ${viewMode === 'tool' && toolOperation === 'encrypt' ? 'active' : ''}`} onClick={() => switchTool('encrypt')}>
+          <span>加密 (Encrypt)</span>
+        </div>
+        <div className={`sidebar-item ${viewMode === 'tool' && toolOperation === 'encrypt_font' ? 'active' : ''}`} onClick={() => switchTool('encrypt_font')}>
+          <span>字体加密 (Font Encrypt)</span>
+        </div>
+        <div className={`sidebar-item ${viewMode === 'tool' && toolOperation === 'decrypt' ? 'active' : ''}`} onClick={() => switchTool('decrypt')}>
+          <span>解密 (Decrypt)</span>
+        </div>
+
+        <div className="nav-group-title">文本与辅助</div>
+        <div className={`sidebar-item ${viewMode === 'tool' && toolOperation === 's2t' ? 'active' : ''}`} onClick={() => switchTool('s2t')}>
+          <span>简体转繁体</span>
+        </div>
+        <div className={`sidebar-item ${viewMode === 'tool' && toolOperation === 't2s' ? 'active' : ''}`} onClick={() => switchTool('t2s')}>
+          <span>繁体转简体</span>
+        </div>
+        <div className={`sidebar-item ${viewMode === 'tool' && toolOperation === 'phonetic' ? 'active' : ''}`} onClick={() => switchTool('phonetic')}>
+          <span>生僻字注音</span>
+        </div>
+        <div className={`sidebar-item ${viewMode === 'tool' && toolOperation === 'yuewei' ? 'active' : ''}`} onClick={() => switchTool('yuewei')}>
+          <span>阅微转多看</span>
+        </div>
+        <div className={`sidebar-item ${viewMode === 'tool' && toolOperation === 'footnote' ? 'active' : ''}`} onClick={() => switchTool('footnote')}>
+          <span>正则脚注处理</span>
+        </div>
+
+        <div className="nav-group-title">资源优化</div>
+        <div className={`sidebar-item ${viewMode === 'tool' && toolOperation === 'font_subset' ? 'active' : ''}`} onClick={() => switchTool('font_subset')}>
+          <span>字体子集化</span>
+        </div>
+        <div className={`sidebar-item ${viewMode === 'tool' && toolOperation === 'img_compress' ? 'active' : ''}`} onClick={() => switchTool('img_compress')}>
+          <span>图片无损压缩</span>
+        </div>
+        <div className={`sidebar-item ${viewMode === 'tool' && toolOperation === 'img_to_webp' ? 'active' : ''}`} onClick={() => switchTool('img_to_webp')}>
+          <span>图片转 WebP</span>
+        </div>
+        <div className={`sidebar-item ${viewMode === 'tool' && toolOperation === 'webp_to_img' ? 'active' : ''}`} onClick={() => switchTool('webp_to_img')}>
+          <span>WebP 转图片</span>
         </div>
       </div>
 
+      {/* RIGHT WORKSPACE AREA */}
       <div className="main-content">
-        {activeTab === 'converter' ? (
-          <>
-            {/* Left Panel: TXT Converter Operations */}
-            <div className="left-panel">
-              <h1>TXT 转 EPUB</h1>
 
+        {/* INPUT PANEL (DYNAMIC) */}
+        <div className="left-panel glass-panel">
+          {viewMode === 'converter' ? (
+            <>
+              <h1 style={{ fontSize: '24px' }}>TXT 转 EPUB</h1>
               <div className="left-panel-scroll">
                 <div>
                   <div className="section-title">1. 选择文件</div>
                   <div className="file-drop-area" onClick={selectTxt}>
                     {txtPath ? (
-                      <span className="file-name">
+                      <div className="file-name" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         {txtPath.split(/[\\/]/).pop()}
-                      </span>
+                      </div>
                     ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
-                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ opacity: 0.5 }}>
-                          <path d="M12 16L12 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                          <path d="M9 11L12 8 15 11" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                          <path d="M8 16H16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                          <path d="M3 15V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                        <span>点击选择 .txt 文件</span>
+                      <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '14px', fontWeight: 500 }}>点击选择 .txt 文件</span>
                       </div>
                     )}
                   </div>
-                  {txtPath && <div className="file-path">{txtPath}</div>}
                 </div>
 
                 <div>
-                  <div className="section-title">2. 书籍信息</div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    <input
-                      placeholder="书籍标题 *"
-                      value={title}
-                      onChange={e => setTitle(e.target.value)}
-                    />
-                    <input
-                      placeholder="作者"
-                      value={author}
-                      onChange={e => setAuthor(e.target.value)}
-                    />
-                  </div>
+                  <div className="section-title">2. params</div>
+                  <input placeholder="书籍标题 *" value={title} onChange={e => setTitle(e.target.value)} style={{ marginBottom: '10px' }} />
+                  <input placeholder="作者" value={author} onChange={e => setAuthor(e.target.value)} />
                 </div>
 
+                {/* Advanced Options & Chapter List */}
                 <div>
-                  <div
-                    className="section-title"
-                    style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}
-                    onClick={() => setShowAdvanced(!showAdvanced)}
-                  >
-                    <span>3. 高级选项 & 章节结构</span>
-                    <span style={{ marginLeft: 'auto', transform: showAdvanced ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.3s' }}>▼</span>
+                  <div className="section-title" style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }} onClick={() => setShowAdvanced(!showAdvanced)}>
+                    <span>3. 高级选项 & 章节</span>
+                    <span style={{ marginLeft: 'auto' }}>{showAdvanced ? '▼' : '▶'}</span>
                   </div>
-
                   {showAdvanced && (
                     <div className="advanced-options-container">
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                        <label style={{ display: 'flex', alignItems: 'center', fontSize: '0.9em' }}>
-                          <input
-                            type="checkbox"
-                            checked={removeEmptyLines}
-                            onChange={e => setRemoveEmptyLines(e.target.checked)}
-                            style={{ width: 'auto', marginRight: '8px' }}
-                          />
-                          去除多余空行
-                        </label>
-                        <label style={{ display: 'flex', alignItems: 'center', fontSize: '0.9em' }}>
-                          <input
-                            type="checkbox"
-                            checked={fixIndent}
-                            onChange={e => setFixIndent(e.target.checked)}
-                            style={{ width: 'auto', marginRight: '8px' }}
-                          />
-                          修正首行缩进
-                        </label>
+                      <label style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}><input type="checkbox" checked={removeEmptyLines} onChange={e => setRemoveEmptyLines(e.target.checked)} style={{ width: 'auto', marginRight: '8px' }} />去除多余空行</label>
+                      <label style={{ display: 'flex', alignItems: 'center' }}><input type="checkbox" checked={fixIndent} onChange={e => setFixIndent(e.target.checked)} style={{ width: 'auto', marginRight: '8px' }} />修正首行缩进</label>
 
+                      <div style={{ marginTop: '12px' }}>
+                        <div className="advanced-section-title">正则表达式</div>
+                        <input value={customRegex} onChange={e => { setCustomRegex(e.target.value); }} placeholder="^第.+章" />
+                      </div>
 
-                        <div style={{ marginTop: '10px' }}>
-                          <div className="advanced-section-title">自定义正则表达式</div>
-                          <input
-                            placeholder="例如: ^第.+章"
-                            value={customRegex}
-                            onChange={e => {
-                              setCustomRegex(e.target.value);
-                              setSelectedPatternIndex(-1); // Clear selection if typing manually
-                            }}
-                            style={{ fontSize: '0.9em', width: '100%' }}
-                          />
-                        </div>
-
-                        <div className="advanced-section-divider">
-                          <div className="advanced-section-title">匹配到的规则 (设置标题级别)</div>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                            {allScanResults.length > 0 ? (
-                              allScanResults.map(result => {
-                                const activeIndex = scanResults.findIndex(r => r.name === result.name);
-                                return (
-                                  <div key={result.name} style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    fontSize: '0.85em',
-                                    gap: '8px',
-                                    padding: '6px 8px',
-                                    backgroundColor: selectedPatternIndex === activeIndex && activeIndex !== -1 ? 'rgba(0,0,0,0.05)' : 'transparent',
-                                    borderRadius: '6px',
-                                    border: selectedPatternIndex === activeIndex && activeIndex !== -1 ? '1px solid var(--border-active)' : '1px solid transparent',
-                                    transition: 'all 0.2s ease'
-                                  }}>
-                                    <input
-                                      type="checkbox"
-                                      checked={!disabledPatterns.has(result.name)}
-                                      onChange={e => {
-                                        const newSet = new Set(disabledPatterns);
-                                        if (e.target.checked) {
-                                          newSet.delete(result.name);
-                                        } else {
-                                          newSet.add(result.name);
-                                        }
-                                        setDisabledPatterns(newSet);
-                                      }}
-                                      style={{ width: 'auto', flexShrink: 0 }}
-                                    />
-                                    <select
-                                      value={patternLevels[result.name] || 1}
-                                      onChange={e => {
-                                        setPatternLevels(prev => ({
-                                          ...prev,
-                                          [result.name]: parseInt(e.target.value)
-                                        }));
-                                      }}
-                                      disabled={disabledPatterns.has(result.name)}
-                                      onClick={(e) => e.stopPropagation()}
-                                      style={{
-                                        width: '60px',
-                                        padding: '2px 4px',
-                                        fontSize: '0.9em',
-                                        opacity: disabledPatterns.has(result.name) ? 0.5 : 1,
-                                        flexShrink: 0
-                                      }}
-                                    >
-                                      <option value={1}>h1</option>
-                                      <option value={2}>h2</option>
-                                      <option value={3}>h3</option>
-                                      <option value={4}>h4</option>
-                                      <option value={5}>h5</option>
-                                      <option value={6}>h6</option>
-                                    </select>
-                                    <span
-                                      onClick={() => activeIndex >= 0 && handlePatternSelect(activeIndex)}
-                                      style={{
-                                        flex: 1,
-                                        cursor: activeIndex >= 0 ? 'pointer' : 'default',
-                                        opacity: disabledPatterns.has(result.name) ? 0.5 : 1,
-                                        color: selectedPatternIndex === activeIndex && activeIndex !== -1 ? 'var(--accent)' : 'inherit',
-                                        minWidth: 0,
-                                        overflow: 'hidden'
-                                      }}
-                                    >
-                                      <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 500 }}>
-                                        {result.name}
-                                      </div>
-                                      {result.example && (
-                                        <div style={{ fontSize: '0.9em', color: 'var(--text-muted)', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                          示例: {result.example}
-                                        </div>
-                                      )}
-                                    </span>
-                                    <span style={{
-                                      color: 'var(--accent)',
-                                      fontWeight: 'bold',
-                                      fontSize: '0.9em',
-                                      opacity: disabledPatterns.has(result.name) ? 0.5 : 1,
-                                      flexShrink: 0,
-                                      marginLeft: '4px'
-                                    }}>
-                                      {result.count}
-                                    </span>
-                                  </div>
-                                );
-                              })
-                            ) : (
-                              <div style={{ fontSize: '0.85em', color: 'var(--text-muted)' }}>
-                                {txtPath ? '扫描中...' : '请先选择文件'}
+                      {/* Simplified Pattern List */}
+                      {allScanResults.length > 0 && (
+                        <div style={{ marginTop: '12px' }}>
+                          <div className="advanced-section-title">自动识别</div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            {allScanResults.map((r, idx) => (
+                              <div key={idx} style={{ fontSize: '12px', padding: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', display: 'flex', justifyContent: 'space-between' }}>
+                                <span>{r.name} ({r.count})</span>
+                                <input type="checkbox" checked={!disabledPatterns.has(r.name)} onChange={e => {
+                                  const newSet = new Set(disabledPatterns);
+                                  if (e.target.checked) newSet.delete(r.name); else newSet.add(r.name);
+                                  setDisabledPatterns(newSet);
+                                }} style={{ width: 'auto' }} />
                               </div>
-                            )}
+                            ))}
                           </div>
                         </div>
-
-
-                      </div>
+                      )}
                     </div>
                   )}
                 </div>
               </div>
 
               <div className="left-panel-footer">
-                {loading && (
-                  <div style={{ marginBottom: '10px' }}>
-                    <div className="progress-bar-bg">
-                      <div className="progress-bar-fill" style={{ width: `${progress}%` }}></div>
-                    </div>
-                    <div style={{ textAlign: 'right', fontSize: '0.8em', color: '#666', marginTop: '2px' }}>{progress}%</div>
-                  </div>
-                )}
-                <button
-                  className="primary"
-                  onClick={convert}
-                  disabled={loading || !txtPath}
-                  style={{ width: '100%', padding: '15px', fontSize: '1.1em' }}
-                >
-                  {loading ? "正在转换..." : "开始转换"}
-                </button>
+                {loading && <div style={{ textAlign: 'center', marginBottom: '8px', fontSize: '12px' }}>{progress}%</div>}
+                <button className="primary" onClick={convert} disabled={loading}>{loading ? '转换中...' : '开始转换'}</button>
               </div>
-            </div>
-
-            {/* Right Panel: Logs & Output */}
-            <div className="right-panel">
-              <div className="section-title">输出日志</div>
-              <div className="log-container">
-                {logs.length === 0 && <div style={{ color: '#666', fontStyle: 'italic' }}>等待操作...</div>}
-                {logs.map((log, i) => (
-                  <div key={i} className="log-entry">
-                    {log}
-                  </div>
-                ))}
-                <div ref={logEndRef} />
-              </div>
-
-              {/* Full Chapter List Section - Moved to Right Panel */}
-              {selectedPatternIndex >= 0 && scanResults[selectedPatternIndex] && (
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-                  <div className="section-title">完整章节列表 ({scanResults[selectedPatternIndex].chapters.length})</div>
-                  <div className="chapter-list-container">
-                    {scanResults[selectedPatternIndex].chapters.map((chapter, i) => (
-                      <div key={i} className="chapter-list-item">
-                        <span className="chapter-index">{i + 1}.</span>
-                        <span className="chapter-title">{chapter}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </>
-        ) : (
-          <>
-            {/* Toolbox View */}
-            <div className="left-panel">
-              <h1>EPUB 工具箱</h1>
+            </>
+          ) : (
+            <>
+              {/* TOOL VIEW */}
+              <h1 style={{ fontSize: '24px' }}>{
+                // Map operation key to readable title
+                {
+                  'reformat': '重排 (Reformat)', 'encrypt': '加密 (Encrypt)', 'encrypt_font': '字体加密 (Font Encrypt)', 'decrypt': '解密 (Decrypt)',
+                  's2t': '简体转繁体', 't2s': '繁体转简体', 'phonetic': '生僻字注音',
+                  'yuewei': '阅微转多看', 'footnote': '正则脚注',
+                  'font_subset': '字体子集化', 'img_compress': '图片压缩', 'img_to_webp': 'To WebP', 'webp_to_img': 'From WebP'
+                }[toolOperation] || toolOperation
+              }</h1>
 
               <div className="left-panel-scroll">
                 <div>
-                  <div className="section-title">1. 选择操作</div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <select
-                      value={toolOperation}
-                      onChange={e => setToolOperation(e.target.value)}
-                      style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-medium)', background: 'var(--bg-input)' }}
-                    >
-                      <optgroup label="基础处理">
-                        <option value="reformat">📐 重排 (Reformat)</option>
-                        <option value="encrypt">🔒 加密 (Encrypt)</option>
-                        <option value="decrypt">🔓 解密 (Decrypt)</option>
-                      </optgroup>
-                      <optgroup label="文本与辅助">
-                        <option value="s2t">🇹 简体转繁体</option>
-                        <option value="t2s">🇸 繁体转简体</option>
-                        <option value="phonetic">🔤 生僻字注音</option>
-                        <option value="pinyin">🔡 全文拼音标注</option>
-                        <option value="yuewei">📖 阅微转多看</option>
-                        <option value="footnote">📑 正则脚注处理</option>
-                      </optgroup>
-                      <optgroup label="资源优化">
-                        <option value="font_subset">🔠 字体子集化</option>
-                        <option value="img_compress">🖼️ 图片无损压缩</option>
-                        <option value="img_to_webp">🕸️ 图片转 WebP</option>
-                        <option value="webp_to_img">🖼️ WebP 转图片</option>
-                      </optgroup>
-                    </select>
-                  </div>
-                </div>
-
-                <div>
-                  <div className="section-title">2. 选择 EPUB 文件</div>
+                  <div className="section-title">1. 选择 EPUB</div>
                   <div className="file-drop-area" onClick={selectToolEpub}>
                     {toolInputPath ? (
-                      <span className="file-name">
-                        {toolInputPath.split(/[\\\/]/).pop()}
-                      </span>
+                      <div className="file-name" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        {toolInputPath.split(/[\\/]/).pop()}
+                      </div>
                     ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
-                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ opacity: 0.5 }}>
-                          <path d="M12 16L12 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                          <path d="M9 11L12 8 15 11" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                          <path d="M8 16H16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                          <path d="M3 15V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                        <span>点击选择 .epub 文件</span>
+                      <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '14px', fontWeight: 500 }}>点击选择 .epub</span>
                       </div>
                     )}
                   </div>
-                  {toolInputPath && <div className="file-path">{toolInputPath}</div>}
                 </div>
 
                 {toolOperation === 'encrypt' && (
                   <div>
-                    <div className="section-title">3. 选择字体文件 (可选)</div>
-                    <div className="file-drop-area" onClick={selectToolFont} style={{ padding: '16px' }}>
-                      {toolFontPath ? (
-                        <span className="file-name">
-                          {toolFontPath.split(/[\\\/]/).pop()}
-                        </span>
-                      ) : (
-                        <span style={{ fontSize: '0.9em' }}>点击选择字体文件</span>
-                      )}
+                    <div className="section-title">2. 选择字体 (可选)</div>
+                    <div className="file-drop-area" onClick={selectToolFont}>
+                      {toolFontPath ? <span className="file-name">{toolFontPath.split(/[\\/]/).pop()}</span> : <span>选择字体文件</span>}
                     </div>
-                    {toolFontPath && <div className="file-path">{toolFontPath}</div>}
                   </div>
                 )}
 
                 {toolOperation === 'footnote' && (
                   <div>
-                    <div className="section-title">3. 脚注匹配正则表达式</div>
-                    <input
-                      type="text"
-                      value={toolRegexPattern}
-                      onChange={e => setToolRegexPattern(e.target.value)}
-                      placeholder="例如: \[(\d+)\]"
-                    />
-                    <div style={{ fontSize: '0.8em', color: 'var(--text-muted)', marginTop: '4px' }}>
-                      默认: \[(\d+)\] (匹配 [1], [2] 等)
-                    </div>
+                    <div className="section-title">2. 匹配正则</div>
+                    <input value={toolRegexPattern} onChange={e => setToolRegexPattern(e.target.value)} />
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>默认: \[(\d+)\]</div>
                   </div>
                 )}
               </div>
 
               <div className="left-panel-footer">
-                {loading && (
-                  <div style={{ marginBottom: '10px' }}>
-                    <div className="progress-bar-bg">
-                      <div className="progress-bar-fill" style={{ width: `${progress}%` }}></div>
-                    </div>
-                    <div style={{ textAlign: 'right', fontSize: '0.8em', color: '#666', marginTop: '2px' }}>{progress}%</div>
-                  </div>
-                )}
-                <button
-                  className="primary"
-                  onClick={runToolOperation}
-                  disabled={loading || !toolInputPath}
-                  style={{ width: '100%', padding: '15px', fontSize: '1.1em' }}
-                >
-                  {loading ? "处理中..." : "执行任务"}
-                </button>
+                {loading && <div style={{ textAlign: 'center', marginBottom: '8px', fontSize: '12px' }}>{progress}%</div>}
+                <button className="primary" onClick={runToolOperation} disabled={loading || !toolInputPath}>{loading ? '处理中...' : '执行任务'}</button>
               </div>
-            </div>
+            </>
+          )}
+        </div>
 
-            {/* Right Panel: Same logs */}
-            <div className="right-panel">
-              <div className="section-title">输出日志</div>
-              <div className="log-container">
-                {logs.length === 0 && <div style={{ color: '#666', fontStyle: 'italic' }}>等待操作...</div>}
-                {logs.map((log, i) => (
-                  <div key={i} className="log-entry">
-                    {log}
-                  </div>
-                ))}
-                <div ref={logEndRef} />
-              </div>
-            </div>
-          </>
-        )}
+        {/* LOGS PANEL (ALWAYS VISIBLE) */}
+        <div className="right-panel glass-panel">
+          <div className="section-title">任务日志</div>
+          <div className="log-container">
+            {logs.length === 0 && <div style={{ opacity: 0.5 }}>等待操作...</div>}
+            {logs.map((log, i) => <div key={i} className="log-entry">{log}</div>)}
+            <div ref={logEndRef} />
+          </div>
+        </div>
+
       </div>
     </div>
   );

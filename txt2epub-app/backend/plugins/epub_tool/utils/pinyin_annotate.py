@@ -15,17 +15,18 @@ try:
     # Attempt relative import first
     from .dict import ShengPiZi
     from .dict import Phrases
+    from .dict import 完整拼音字典 as FullPinyin
 except ImportError:
     # Fallback to absolute import if running from root
     try:
-        from ..dict import ShengPiZi
         from ..dict import Phrases
+        from ..dict import 完整拼音字典 as FullPinyin
     except ImportError:
         # Last resort for direct execution
         import sys
         sys.path.append(os.path.join(os.path.dirname(__file__), 'dict'))
-        import ShengPiZi
         import Phrases
+        import 完整拼音字典 as FullPinyin
 
 logger = logwriter()
 
@@ -235,9 +236,9 @@ class Converter(object):
 
 def initMaps():
     mapping = {}
-    # Load ShengPiZi dict
-    for code in ShengPiZi.shengpizi_dict:
-        mapping[code] = ShengPiZi.shengpizi_dict[code]
+    # Load Full Pinyin dict for Full Text Annotation
+    for code in FullPinyin.pinyin_dict:
+        mapping[code] = FullPinyin.pinyin_dict[code]
     
     # Load Phrases dict
     for key in Phrases.phrases_dict:

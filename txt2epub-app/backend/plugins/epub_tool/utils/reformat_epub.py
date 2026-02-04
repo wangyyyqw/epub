@@ -719,7 +719,9 @@ class EpubTool:
         self.tgt_epub.writestr(
             "OEBPS/content.opf", bytes(opf, encoding="utf-8"), zipfile.ZIP_DEFLATED
         )
+        logger.write("Writing content.opf done. Closing files...")
         self.close_files()
+        logger.write("Files closed successfully.")
 
     def close_files(self):
         if self.epub:
@@ -798,9 +800,16 @@ def run(epub_src, output_path=None):
         if epub_src.lower().endswith("_reformat.epub"):
             logger.write("警告: 该文件已经重排，无需再次处理！")
             return "skip"
+        
+        logger.write("正在初始化 EpubTool (v1)...")
         epub = EpubTool(epub_src)
+        
+        logger.write("设置输出路径...")
         epub.set_output_path(output_path)
+        
+        logger.write("开始详细重构 (Detailed Restructure)...")
         epub.restructure()  # 重构
+        logger.write("Restructure function returned.")
         el = epub.errorLink_log.copy()
         del_keys = []
         for file_path, log in epub.errorLink_log.items():
