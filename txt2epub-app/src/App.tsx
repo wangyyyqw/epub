@@ -300,16 +300,16 @@ function App() {
 
         <div className="nav-group-title">基础处理</div>
         <div className={`sidebar-item ${viewMode === 'tool' && toolOperation === 'reformat' ? 'active' : ''}`} onClick={() => switchTool('reformat')}>
-          <span>重排 (Reformat)</span>
+          <span>格式化</span>
         </div>
         <div className={`sidebar-item ${viewMode === 'tool' && toolOperation === 'encrypt' ? 'active' : ''}`} onClick={() => switchTool('encrypt')}>
-          <span>加密 (Encrypt)</span>
+          <span>加密</span>
         </div>
         <div className={`sidebar-item ${viewMode === 'tool' && toolOperation === 'encrypt_font' ? 'active' : ''}`} onClick={() => switchTool('encrypt_font')}>
-          <span>字体加密 (Font Encrypt)</span>
+          <span>字体加密</span>
         </div>
         <div className={`sidebar-item ${viewMode === 'tool' && toolOperation === 'decrypt' ? 'active' : ''}`} onClick={() => switchTool('decrypt')}>
-          <span>解密 (Decrypt)</span>
+          <span>解密</span>
         </div>
 
         <div className="nav-group-title">文本与辅助</div>
@@ -326,7 +326,13 @@ function App() {
           <span>阅微转多看</span>
         </div>
         <div className={`sidebar-item ${viewMode === 'tool' && toolOperation === 'footnote' ? 'active' : ''}`} onClick={() => switchTool('footnote')}>
-          <span>正则脚注处理</span>
+          <span>正则脚注</span>
+        </div>
+        <div className={`sidebar-item ${viewMode === 'tool' && toolOperation === 'comment' ? 'active' : ''}`} onClick={() => switchTool('comment')}>
+          <span>正则注释</span>
+        </div>
+        <div className={`sidebar-item ${viewMode === 'tool' && toolOperation === 'footnote_conv' ? 'active' : ''}`} onClick={() => switchTool('footnote_conv')}>
+          <span>脚注链接转注释</span>
         </div>
 
         <div className="nav-group-title">资源优化</div>
@@ -427,10 +433,11 @@ function App() {
               <h1 style={{ fontSize: '24px' }}>{
                 // Map operation key to readable title
                 {
-                  'reformat': '重排 (Reformat)', 'encrypt': '加密 (Encrypt)', 'encrypt_font': '字体加密 (Font Encrypt)', 'decrypt': '解密 (Decrypt)',
+                  'reformat': '格式化', 'encrypt': '加密', 'encrypt_font': '字体加密', 'decrypt': '解密',
                   's2t': '简体转繁体', 't2s': '繁体转简体', 'phonetic': '生僻字注音',
                   'yuewei': '阅微转多看', 'footnote': '正则脚注',
-                  'font_subset': '字体子集化', 'img_compress': '图片压缩', 'download_images': '下载网络图片', 'img_to_webp': 'To WebP', 'webp_to_img': 'From WebP'
+                  'font_subset': '字体子集化', 'img_compress': '图片压缩', 'download_images': '下载网络图片', 'img_to_webp': '图片转 WebP', 'webp_to_img': 'WebP 转图片',
+                  'comment': '正则注释', 'footnote_conv': '脚注链接转注释'
                 }[toolOperation] || toolOperation
               }</h1>
 
@@ -459,11 +466,11 @@ function App() {
                   </div>
                 )}
 
-                {toolOperation === 'footnote' && (
+                {(toolOperation === 'footnote' || toolOperation === 'comment') && (
                   <div>
                     <div className="section-title">2. 匹配正则</div>
                     <input value={toolRegexPattern} onChange={e => setToolRegexPattern(e.target.value)} />
-                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>默认: \[(\d+)\]</div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>默认: \[(\d+)\] (注释: \[.*\])</div>
                   </div>
                 )}
               </div>

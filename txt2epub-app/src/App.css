@@ -123,7 +123,7 @@ body {
 
 /* Sidebar */
 .sidebar {
-  width: 150px;
+  width: 180px;
   /* Further reduced width */
   display: flex;
   flex-direction: column;
@@ -204,7 +204,7 @@ body {
 
 /* Left Panel */
 .left-panel {
-  width: 200px;
+  width: 300px;
   /* Fixed width per request */
   padding: 10px;
   /* Reduced padding */
@@ -294,6 +294,8 @@ h1 {
   align-items: center;
   justify-content: center;
   min-height: 60px;
+  box-sizing: border-box;
+  width: 100%;
 }
 
 .file-drop-area:hover {
@@ -310,6 +312,11 @@ h1 {
   border-radius: 99px;
   display: inline-block;
   border: 1px solid rgba(6, 182, 212, 0.2);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  box-sizing: border-box;
 }
 
 /* Inputs */
