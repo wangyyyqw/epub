@@ -35,3 +35,5 @@ src-tauri/bin/converter-backend-*
 # Editor
 .vscode/
 .idea/
+txt2epub-app/src-tauri/binaries/converter-backend-*
+txt2epub-app/backend/log.txt

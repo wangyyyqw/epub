@@ -1,5 +1,6 @@
 use tauri_plugin_shell::process::CommandEvent;
 use tauri_plugin_shell::ShellExt;
+use tauri::Emitter;
 
 #[tauri::command]
 async fn convert_book(
@@ -94,9 +95,11 @@ async fn run_epub_tool(
     while let Some(event) = rx.recv().await {
          if let CommandEvent::Stdout(line) = event {
             let line_str = String::from_utf8_lossy(&line);
+            app.emit("epub_tool_log", &line_str).unwrap();
             output_text.push_str(&line_str);
         } else if let CommandEvent::Stderr(line) = event {
             let line_str = String::from_utf8_lossy(&line);
+            app.emit("epub_tool_log", &line_str).unwrap();
             output_text.push_str(&line_str);
         }
     }

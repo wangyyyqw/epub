@@ -6,10 +6,10 @@ from core.plugin_base import BasePlugin
 # Import utils relative to this file
 # Note: Since the utils folder is inside this package, imports in utils might need adjustment 
 # or we need to ensure this folder is a package.
-    from .utils import encrypt_epub, decrypt_epub, reformat_epub, \
+from .utils import encrypt_epub, decrypt_epub, reformat_epub, \
     chinese_convert, font_subset, img_compress, img_to_webp, \
     webp_to_img, phonetic_notation, pinyin_annotate, regex_footnote, \
-    yuewei_to_duokan, encrypt_font
+    yuewei_to_duokan, encrypt_font, download_web_images
 
 class EpubToolPlugin(BasePlugin):
     @property
@@ -24,7 +24,7 @@ class EpubToolPlugin(BasePlugin):
         parser.add_argument("--operation", choices=[
             "encrypt", "encrypt_font", "decrypt", "reformat", "s2t", "t2s", 
             "font_subset", "img_compress", "img_to_webp", 
-            "webp_to_img", "phonetic", "footnote", "yuewei"
+            "webp_to_img", "phonetic", "footnote", "yuewei", "download_images"
         ], required=True, help="Operation to perform")
         parser.add_argument("--input-path", required=True, help="Path to input EPUB file")
         parser.add_argument("--font-path", help="Path to font file for encryption")
@@ -68,6 +68,8 @@ class EpubToolPlugin(BasePlugin):
                 result = regex_footnote.run(args.input_path, os.path.dirname(args.input_path), regex)
             elif args.operation == "yuewei":
                 result = yuewei_to_duokan.run(args.input_path)
+            elif args.operation == "download_images":
+                result = download_web_images.run(args.input_path)
             
             if result == 0:
                 print("SUCCESS", file=sys.stderr)

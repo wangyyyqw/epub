@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import "./App.css";
 
@@ -50,6 +51,19 @@ function App() {
   useEffect(() => {
     logEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [logs]);
+
+  useEffect(() => {
+    const unlistenPromise = listen<string>('epub_tool_log', (event) => {
+      const message = event.payload.trim();
+      if (message) {
+        addLog(message);
+      }
+    });
+
+    return () => {
+      unlistenPromise.then(unlisten => unlisten());
+    };
+  }, []);
 
   useEffect(() => {
     if (allScanResults.length > 0) {
@@ -274,7 +288,7 @@ function App() {
       {/* LEFT NAVIGATION SIDEBAR */}
       <div className="sidebar glass-panel">
         <h2 style={{ fontSize: '18px', margin: '0 0 10px 16px', color: 'var(--accent-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          TXT2EPUB
+          epub 工具箱
         </h2>
 
         <div
@@ -318,6 +332,9 @@ function App() {
         <div className="nav-group-title">资源优化</div>
         <div className={`sidebar-item ${viewMode === 'tool' && toolOperation === 'font_subset' ? 'active' : ''}`} onClick={() => switchTool('font_subset')}>
           <span>字体子集化</span>
+        </div>
+        <div className={`sidebar-item ${viewMode === 'tool' && toolOperation === 'download_images' ? 'active' : ''}`} onClick={() => switchTool('download_images')}>
+          <span>下载网络图片</span>
         </div>
         <div className={`sidebar-item ${viewMode === 'tool' && toolOperation === 'img_compress' ? 'active' : ''}`} onClick={() => switchTool('img_compress')}>
           <span>图片无损压缩</span>
@@ -413,7 +430,7 @@ function App() {
                   'reformat': '重排 (Reformat)', 'encrypt': '加密 (Encrypt)', 'encrypt_font': '字体加密 (Font Encrypt)', 'decrypt': '解密 (Decrypt)',
                   's2t': '简体转繁体', 't2s': '繁体转简体', 'phonetic': '生僻字注音',
                   'yuewei': '阅微转多看', 'footnote': '正则脚注',
-                  'font_subset': '字体子集化', 'img_compress': '图片压缩', 'img_to_webp': 'To WebP', 'webp_to_img': 'From WebP'
+                  'font_subset': '字体子集化', 'img_compress': '图片压缩', 'download_images': '下载网络图片', 'img_to_webp': 'To WebP', 'webp_to_img': 'From WebP'
                 }[toolOperation] || toolOperation
               }</h1>
 

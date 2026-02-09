@@ -309,23 +309,23 @@ def run_epub_font_subset(epub_path, output_path=None):
         kept_fonts = [f for f in fs.fonts if f in fs.font_to_char_mapping and fs.font_to_char_mapping[f]]
         removed_fonts = [f for f in fs.fonts if f not in kept_fonts]
         
-        logger.write(\"\n\" + \"=\"*30)
-        logger.write(\"【字体子集化结果统计】\")
-        logger.write(f\"处理前字体数: {len(fs.fonts)}\")
-        logger.write(f\"保留字体数: {len(kept_fonts)}\")
-        logger.write(f\"移除字体数: {len(removed_fonts)}\")
+        logger.write("\n" + "="*30)
+        logger.write("【字体子集化结果统计】")
+        logger.write(f"处理前字体数: {len(fs.fonts)}")
+        logger.write(f"保留字体数: {len(kept_fonts)}")
+        logger.write(f"移除字体数: {len(removed_fonts)}")
         
         if kept_fonts:
-            logger.write(\"\\n[保留并压缩的字体]:\")
+            logger.write("\n[保留并压缩的字体]:")
             for f in kept_fonts:
                 count = len(fs.font_to_char_mapping[f])
-                logger.write(f\"  - {f} (包含 {count} 个字符)\")
+                logger.write(f"  - {f} (包含 {count} 个字符)")
                 
         if removed_fonts:
-            logger.write(\"\\n[未使用并移除的字体]:\")
+            logger.write("\n[未使用并移除的字体]:")
             for f in removed_fonts:
-                logger.write(f\"  - {f}\")
-        logger.write(\"=\"*30 + \"\\n\")
+                logger.write(f"  - {f}")
+        logger.write("="*30 + "\n")
         
         return 0
     except Exception as e:

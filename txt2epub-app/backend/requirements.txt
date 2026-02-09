@@ -10,3 +10,4 @@ tqdm
 Pillow
 pypinyin
 opencc-python-reimplemented
+requests
