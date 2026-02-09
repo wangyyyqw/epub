@@ -37,7 +37,7 @@ A modern, localized TXT to EPUB converter built with Tauri, React, and Python, f
 
 ## 🧰 EPUB 工具箱 (EPUB Toolbox)
 
-除了基础的 TXT 转 EPUB 功能，本项目还提供了一系列强大的 EPUB 后处理工具：
+除了基础的 TXT 转 EPUB 功能，本项目还提供了一系列强大的 EPUB 后处理工具，**支持多文件拖拽与批量处理**：
 
 ### 资源优化
 - **图片压缩**: 减小 EPUB 体积。
@@ -131,6 +131,8 @@ A modern, localized TXT to EPUB converter built with Tauri, React, and Python, f
    ```
 
 本项目使用了以下开源技术：
+
+- [epub_tool](https://github.com/cnwxi/epub_tool)
 - [Tauri](https://tauri.app/)
 - [React](https://reactjs.org/)
 - [Python](https://www.python.org/)

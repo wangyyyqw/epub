@@ -124,46 +124,41 @@ body {
 /* Sidebar */
 .sidebar {
   width: 180px;
-  /* Further reduced width */
   display: flex;
   flex-direction: column;
-  padding: 10px;
-  gap: 4px;
-  /* Tighter gap */
+  padding: 12px;
+  gap: 6px;
   z-index: 20;
   overflow-y: auto;
 }
 
 .nav-group-title {
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.1em;
   color: var(--text-muted);
-  margin-top: 16px;
+  margin-top: 20px;
   margin-bottom: 8px;
   padding-left: 12px;
-  opacity: 0.8;
+  opacity: 0.7;
 }
 
 .sidebar-item {
   width: 100%;
-  height: 48px;
+  height: 44px;
+  /* Slightly more compact */
   border-radius: var(--radius-sm);
-  /* Smaller radius for list items */
   display: flex;
   flex-direction: row;
-  /* Row layout */
   align-items: center;
   justify-content: flex-start;
-  /* Left align */
-  padding: 0 16px;
-  /* Inner padding */
+  padding: 0 12px;
   cursor: pointer;
   color: var(--text-muted);
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   font-size: 13px;
-  /* Slightly smaller font */
+  font-weight: 500;
   gap: 4px;
   /* Space between icon and text */
   background: transparent;
@@ -171,28 +166,20 @@ body {
 }
 
 .sidebar-item:hover {
-  background: var(--glass-highlight);
+  background: rgba(255, 255, 255, 0.1);
   color: var(--text-main);
-  transform: translateX(4px);
-  /* Slight bump right */
 }
 
 .sidebar-item.active {
   background: var(--glass-highlight);
   border: 1px solid var(--glass-border);
   color: var(--accent-primary);
-  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.1);
-  font-weight: 500;
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.15);
+  font-weight: 600;
 }
 
 /* Icon in sidebar */
-.sidebar-icon {
-  font-size: 18px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-}
+
 
 /* Main Content Area */
 .main-content {
@@ -421,23 +408,11 @@ button.primary:disabled {
   color: var(--text-muted);
 }
 
-/* Custom Scrollbar */
+/* Custom Scrollbar - Hidden but scrollable */
 ::-webkit-scrollbar {
-  width: 8px;
-}
-
-::-webkit-scrollbar-track {
+  width: 0px;
   background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background: rgba(156, 163, 175, 0.5);
-  border-radius: 4px;
-  border: 2px solid transparent;
-  /* space around thumb */
-  background-clip: content-box;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(156, 163, 175, 0.8);
+  /* Optional: just in case */
+  display: none;
+  /* Safest bet to completely remove visual trace */
 }

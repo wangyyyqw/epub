@@ -21,6 +21,57 @@ function App() {
   const [viewMode, setViewMode] = useState<ViewMode>('converter');
   const [toolOperation, setToolOperation] = useState<string>('reformat');
 
+  // Helper to add paths with deduplication
+  const addToolInputPaths = (newPaths: string[]) => {
+    setToolInputPaths(prev => {
+      const existing = new Set(prev);
+      const unique = newPaths.filter(p => !existing.has(p));
+      if (unique.length === 0) return prev;
+      return [...prev, ...unique];
+    });
+  };
+
+  const removeToolInputPath = (index: number, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent ensuring parent click
+    setToolInputPaths(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const clearToolInputPaths = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setToolInputPaths([]);
+  };
+
+  useEffect(() => {
+    // File Drop handling
+    const unlistenPromise = listen<string[]>('tauri://file-drop', (event) => {
+      const paths = event.payload;
+      if (paths && paths.length > 0) {
+        if (viewMode === 'tool') {
+          // Filter for EPUBs
+          const epubs = paths.filter(p => p.toLowerCase().endsWith('.epub'));
+          if (epubs.length > 0) {
+            addToolInputPaths(epubs);
+            addLog(`已添加拖拽文件: ${epubs.length} 个`);
+          }
+        } else if (viewMode === 'converter') {
+          // Handle TXT drop
+          const txt = paths.find(p => p.toLowerCase().endsWith('.txt'));
+          if (txt) {
+            setTxtPath(txt);
+            addLog(`已识别拖拽文件: ${txt}`);
+            const filename = txt.split(/[\\/]/).pop()?.replace('.txt', '') || "";
+            setTitle(filename);
+            scanFile(txt);
+          }
+        }
+      }
+    });
+
+    return () => {
+      unlistenPromise.then(unlisten => unlisten());
+    };
+  }, [viewMode]); // Re-bind when viewMode changes to ensure correct logic context
+
   // Data States
   const [txtPath, setTxtPath] = useState("");
   const [title, setTitle] = useState("");
@@ -42,9 +93,13 @@ function App() {
   const [patternLevels] = useState<Record<string, number>>({});
 
   // Tool State
-  const [toolInputPath, setToolInputPath] = useState('');
+  const [toolInputPaths, setToolInputPaths] = useState<string[]>([]);
   const [toolFontPath, setToolFontPath] = useState('');
   const [toolRegexPattern, setToolRegexPattern] = useState('\\[(\\d+)\\]');
+
+  // Batch Processing State
+  const [currentFileIndex, setCurrentFileIndex] = useState<number>(-1);
+  const [isBatchProcessing, setIsBatchProcessing] = useState(false);
 
   const logEndRef = useRef<HTMLDivElement>(null);
 
@@ -206,13 +261,13 @@ function App() {
   async function selectToolEpub() {
     try {
       const selected = await open({
-        multiple: false,
+        multiple: true,
         filters: [{ name: 'EPUB', extensions: ['epub'] }]
       });
       if (selected) {
-        const path = selected as string;
-        setToolInputPath(path);
-        addLog(`已选择 EPUB: ${path}`);
+        const paths = Array.isArray(selected) ? selected : [selected];
+        addToolInputPaths(paths);
+        addLog(`已添加 ${paths.length} 个文件`);
       }
     } catch (err) {
       addLog(`选择文件出错: ${err}`);
@@ -236,7 +291,7 @@ function App() {
   }
 
   async function runToolOperation() {
-    if (!toolInputPath) {
+    if (toolInputPaths.length === 0) {
       addLog("错误: 请先选择 EPUB 文件。");
       return;
     }
@@ -245,30 +300,49 @@ function App() {
     }
 
     setLoading(true);
+    setIsBatchProcessing(true);
     setProgress(0);
-    addLog(`开始执行 ${toolOperation} 操作...`);
+
+    const total = toolInputPaths.length;
+    addLog(`开始批量执行 ${toolOperation} 操作，共 ${total} 个文件...`);
 
     try {
-      const result = await invoke("run_epub_tool", {
-        operation: toolOperation,
-        inputPath: toolInputPath,
-        fontPath: toolFontPath || null,
-        regexPattern: toolRegexPattern || null
-      });
+      for (let i = 0; i < total; i++) {
+        const inputPath = toolInputPaths[i];
+        setCurrentFileIndex(i);
+        const filename = inputPath.split(/[\\/]/).pop();
+        addLog(`[${i + 1}/${total}] 正在处理: ${filename}...`);
 
-      const lines = (result as string).split('\n');
-      lines.forEach(line => {
-        if (line.trim()) {
-          addLog(`> ${line}`);
+        try {
+          const result = await invoke("run_epub_tool", {
+            operation: toolOperation,
+            inputPath: inputPath,
+            fontPath: toolFontPath || null,
+            regexPattern: toolRegexPattern || null
+          });
+
+          const lines = (result as string).split('\n');
+          lines.forEach(line => {
+            if (line.trim()) {
+              addLog(`> ${line}`);
+            }
+          });
+        } catch (fileErr) {
+          addLog(`[ERROR] 文件 ${filename} 处理失败: ${fileErr}`);
         }
-      });
 
-      addLog(`${toolOperation} 操作完成。`);
-      setProgress(100);
+        // Update progress bar based on file count
+        setProgress(Math.round(((i + 1) / total) * 100));
+      }
+
+      addLog(`批量 ${toolOperation} 操作完成。`);
     } catch (error) {
-      addLog(`严重错误: ${error}`);
+      addLog(`严重系统错误: ${error}`);
     } finally {
       setLoading(false);
+      setIsBatchProcessing(false);
+      setCurrentFileIndex(-1);
+      setProgress(100);
     }
   }
 
@@ -443,15 +517,79 @@ function App() {
 
               <div className="left-panel-scroll">
                 <div>
-                  <div className="section-title">1. 选择 EPUB</div>
-                  <div className="file-drop-area" onClick={selectToolEpub}>
-                    {toolInputPath ? (
-                      <div className="file-name" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        {toolInputPath.split(/[\\/]/).pop()}
+                  <div className="section-title">1. 选择 EPUB (可拖拽多选)</div>
+                  <div
+                    className="file-drop-area"
+                    onClick={selectToolEpub}
+                    // Prevent default to allow drop visual feedback, but allow propagation so Tauri sees it
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      // Data handled by global listener
+                    }}
+                  >
+                    {toolInputPaths.length > 0 ? (
+                      <div style={{ width: '100%', textAlign: 'left' }}>
+                        <div style={{ maxHeight: '160px', overflowY: 'auto', marginBottom: '8px', paddingRight: '4px' }}>
+                          {toolInputPaths.map((path, idx) => (
+                            <div key={idx} className="file-item-row" style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              marginBottom: '4px',
+                              background: 'rgba(255,255,255,0.05)',
+                              borderRadius: '4px',
+                              padding: '6px 8px',
+                              fontSize: '12px',
+                            }} onClick={(e) => { e.stopPropagation(); }}>
+                              <div style={{
+                                flex: 1,
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                                marginRight: '8px'
+                              }}>
+                                {path.split(/[\\/]/).pop()}
+                              </div>
+                              <div
+                                className="delete-btn"
+                                onClick={(e) => removeToolInputPath(idx, e)}
+                                style={{
+                                  cursor: 'pointer',
+                                  color: 'var(--text-muted)',
+                                  fontWeight: 'bold',
+                                  fontSize: '14px',
+                                  padding: '0 4px'
+                                }}
+                                onMouseOver={(e) => e.currentTarget.style.color = '#ff6b6b'}
+                                onMouseOut={(e) => e.currentTarget.style.color = 'var(--text-muted)'}
+                              >
+                                ×
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
+                          <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>共 {toolInputPaths.length} 个文件</span>
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <button
+                              className="secondary"
+                              style={{ padding: '2px 8px', fontSize: '11px', height: 'auto', background: 'transparent', border: '1px solid var(--border-color)' }}
+                              onClick={clearToolInputPaths}
+                            >
+                              清空
+                            </button>
+                          </div>
+                        </div>
+                        <div style={{ textAlign: 'center', marginTop: '8px', fontSize: '11px', color: 'var(--accent-primary)', cursor: 'pointer' }}>
+                          + 点击或拖拽添加更多
+                        </div>
                       </div>
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ fontSize: '14px', fontWeight: 500 }}>点击选择 .epub</span>
+                        <span style={{ fontSize: '14px', fontWeight: 500 }}>点击选择或拖拽 .epub</span>
                       </div>
                     )}
                   </div>
@@ -476,8 +614,11 @@ function App() {
               </div>
 
               <div className="left-panel-footer">
-                {loading && <div style={{ textAlign: 'center', marginBottom: '8px', fontSize: '12px' }}>{progress}%</div>}
-                <button className="primary" onClick={runToolOperation} disabled={loading || !toolInputPath}>{loading ? '处理中...' : '执行任务'}</button>
+                {isBatchProcessing && <div style={{ textAlign: 'center', marginBottom: '8px', fontSize: '12px' }}>
+                  处理中: [{currentFileIndex + 1}/{toolInputPaths.length}] {progress}%
+                </div>}
+                {!isBatchProcessing && loading && <div style={{ textAlign: 'center', marginBottom: '8px', fontSize: '12px' }}>{progress}%</div>}
+                <button className="primary" onClick={runToolOperation} disabled={loading || toolInputPaths.length === 0}>{loading ? '处理中...' : '执行任务'}</button>
               </div>
             </>
           )}
