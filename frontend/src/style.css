@@ -1,0 +1,49 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@font-face {
+  font-family: "Source Han Serif SC VF";
+  src: url("./assets/fonts/SourceHanSerifSC.woff2") format("woff2"),
+       url("./assets/fonts/SourceHanSerifSC.ttf") format("truetype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+html, body {
+  height: 100%;
+  margin: 0;
+  font-family: "Source Han Serif SC VF", "思源宋体 VF", "Source Han Serif SC", "Noto Serif SC", "思源宋体", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#app {
+  height: 100%;
+}
+
+/* Smooth scrollbar for main content */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.12);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+/* Selection color */
+::selection {
+  background: rgba(99, 102, 241, 0.2);
+}
+
+.drag-region {
+  --wails-draggable: drag;
+}

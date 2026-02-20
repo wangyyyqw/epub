@@ -1,0 +1,34 @@
+# Build outputs
+build/bin
+release/
+
+# Frontend
+node_modules
+frontend/dist
+
+# Python
+backend-py/build/
+backend-py/dist/
+backend-py/test_output/
+backend-py/__pycache__/
+backend-py/**/__pycache__/
+**/__pycache__/
+*.pyc
+*.spec
+
+# Backend binary (compiled separately)
+backend-bin/converter-backend
+backend-bin/converter-backend.exe
+backend-bin/*.bak
+
+# Reference / test files
+参考/
+backend-bin/log.txt
+backend-py/log.txt
+backend-py/test_*.py
+
+# IDE & OS
+.alma-snapshots
+.kiro/
+.DS_Store
+*.log

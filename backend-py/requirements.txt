@@ -1,0 +1,13 @@
+EbookLib>=0.17.1
+chardet>=5.2.0
+
+lxml==5.1.0
+beautifulsoup4
+emoji
+fonttools
+tinycss2
+tqdm
+Pillow
+pypinyin
+opencc-python-reimplemented
+requests
