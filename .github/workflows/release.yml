@@ -84,13 +84,13 @@ jobs:
         run: wails build -platform windows/amd64
 
       - name: Package
-        shell: bash
+        shell: pwsh
         run: |
-          mkdir -p dist
-          cp build/bin/epub-tool-go.exe dist/
-          mkdir -p dist/backend-bin
-          cp backend-bin/converter-backend.exe dist/backend-bin/
-          cd dist && zip -r ../EPUB工具箱-Windows-amd64.zip . && cd ..
+          New-Item -ItemType Directory -Force -Path dist
+          Copy-Item build/bin/epub-tool-go.exe dist/
+          New-Item -ItemType Directory -Force -Path dist/backend-bin
+          Copy-Item backend-bin/converter-backend.exe dist/backend-bin/
+          Compress-Archive -Path dist/* -DestinationPath EPUB工具箱-Windows-amd64.zip
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
