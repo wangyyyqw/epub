@@ -1,0 +1,194 @@
+name: Auto Build & Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  # 1. 生成版本号
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      changelog: ${{ steps.changelog.outputs.changelog }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate version
+        id: version
+        run: |
+          # 基于日期 + 短 commit hash 生成版本号
+          VERSION="v$(date +'%Y.%m.%d')-$(git rev-parse --short HEAD)"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Generated version: $VERSION"
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # 获取上一个 tag 到现在的 commit 信息作为更新内容
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -z "$LAST_TAG" ]; then
+            LOG=$(git log --pretty=format:"- %s (%h)" -20)
+          else
+            LOG=$(git log --pretty=format:"- %s (%h)" "$LAST_TAG"..HEAD)
+          fi
+          # 处理多行输出
+          EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+          echo "changelog<<$EOF" >> "$GITHUB_OUTPUT"
+          echo "$LOG" >> "$GITHUB_OUTPUT"
+          echo "$EOF" >> "$GITHUB_OUTPUT"
+
+  # 2. Windows 构建
+  build-windows:
+    needs: version
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Wails CLI
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
+      - name: Build Python backend
+        shell: bash
+        run: |
+          cd backend-py
+          pip install -r requirements.txt
+          pip install pyinstaller
+          pyinstaller --onefile --name converter-backend main.py -y --clean
+          cd ..
+          mkdir -p backend-bin
+          cp backend-py/dist/converter-backend.exe backend-bin/converter-backend.exe
+
+      - name: Build Wails app
+        run: wails build -platform windows/amd64
+
+      - name: Package
+        shell: bash
+        run: |
+          mkdir -p dist
+          cp build/bin/epub-tool-go.exe dist/
+          mkdir -p dist/backend-bin
+          cp backend-bin/converter-backend.exe dist/backend-bin/
+          cd dist && zip -r ../EPUB工具箱-Windows-amd64.zip . && cd ..
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-build
+          path: EPUB工具箱-Windows-amd64.zip
+
+  # 3. macOS 构建
+  build-macos:
+    needs: version
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Wails CLI
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
+      - name: Build Python backend
+        run: |
+          cd backend-py
+          pip install -r requirements.txt
+          pip install pyinstaller
+          pyinstaller --onefile --name converter-backend main.py -y --clean
+          cd ..
+          mkdir -p backend-bin
+          cp backend-py/dist/converter-backend backend-bin/converter-backend
+
+      - name: Build Wails app
+        run: wails build
+
+      - name: Package
+        run: |
+          mkdir -p dist
+          # .app 在 build/bin/ 下
+          cp -r build/bin/epub-tool-go.app dist/
+          # 把 backend-bin 放进 .app/Contents/Resources
+          mkdir -p dist/epub-tool-go.app/Contents/Resources/backend-bin
+          cp backend-bin/converter-backend dist/epub-tool-go.app/Contents/Resources/backend-bin/
+          cd dist && zip -r ../EPUB工具箱-macOS.zip epub-tool-go.app && cd ..
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-build
+          path: EPUB工具箱-macOS.zip
+
+  # 4. 创建 Release
+  release:
+    needs: [version, build-windows, build-macos]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Windows build
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-build
+
+      - name: Download macOS build
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-build
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.version.outputs.version }}
+          name: EPUB 工具箱 ${{ needs.version.outputs.version }}
+          body: |
+            ## 更新内容
+
+            ${{ needs.version.outputs.changelog }}
+
+            ## 下载
+
+            | 平台 | 文件 |
+            |------|------|
+            | Windows | `EPUB工具箱-Windows-amd64.zip` |
+            | macOS | `EPUB工具箱-macOS.zip` |
+
+            ---
+            > Windows 版解压后运行 `epub-tool-go.exe`
+            > macOS 版解压后双击 `epub-tool-go.app`
+          files: |
+            EPUB工具箱-Windows-amd64.zip
+            EPUB工具箱-macOS.zip
+          draft: false
+          prerelease: false

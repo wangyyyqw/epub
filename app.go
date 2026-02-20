@@ -88,6 +88,13 @@ func (a *App) findBackendBinary() string {
 		filepath.Join(root, "backend-bin", binaryName),
 	}
 
+	// macOS .app bundle: Contents/MacOS/../Resources/backend-bin/
+	if runtime.GOOS == "darwin" {
+		searchPaths = append(searchPaths,
+			filepath.Join(exPath, "..", "Resources", "backend-bin", binaryName),
+		)
+	}
+
 	for _, p := range searchPaths {
 		if _, err := os.Stat(p); err == nil {
 			return p
