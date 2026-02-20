@@ -14,6 +14,8 @@
 html, body {
   height: 100%;
   margin: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
   font-family: "Source Han Serif SC VF", "思源宋体 VF", "Source Han Serif SC", "Noto Serif SC", "思源宋体", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
