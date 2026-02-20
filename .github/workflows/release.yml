@@ -139,11 +139,11 @@ jobs:
       - name: Package
         run: |
           mkdir -p dist
-          # .app 在 build/bin/ 下
           cp -r build/bin/epub-tool-go.app dist/
-          # 把 backend-bin 放进 .app/Contents/Resources
           mkdir -p dist/epub-tool-go.app/Contents/Resources/backend-bin
           cp backend-bin/converter-backend dist/epub-tool-go.app/Contents/Resources/backend-bin/
+          # 移除隔离属性，减少 Gatekeeper 问题
+          xattr -cr dist/epub-tool-go.app
           cd dist && zip -r ../EPUB工具箱-macOS.zip epub-tool-go.app && cd ..
 
       - name: Upload artifact
@@ -186,7 +186,7 @@ jobs:
 
             ---
             > Windows 版解压后运行 `epub-tool-go.exe`
-            > macOS 版解压后双击 `epub-tool-go.app`
+            > macOS 版解压后若提示"已损坏"，请在终端执行：`xattr -cr epub-tool-go.app` 然后再打开
           files: |
             EPUB工具箱-Windows-amd64.zip
             EPUB工具箱-macOS.zip
