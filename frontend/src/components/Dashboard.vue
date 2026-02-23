@@ -81,5 +81,33 @@ const colorMap = {
         </li>
       </ul>
     </div>
+
+    <!-- Acknowledgments -->
+    <div class="bg-gray-50 border border-gray-100 dark:bg-gray-800/50 dark:border-gray-700 rounded-xl p-5">
+      <div class="flex items-center space-x-2 mb-3">
+        <svg class="h-4 w-4 text-rose-400 dark:text-rose-500" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+        </svg>
+        <h2 class="text-sm font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">致谢</h2>
+      </div>
+      <ul class="space-y-2 text-sm text-gray-600 dark:text-gray-400">
+        <li class="flex items-start">
+          <span class="text-rose-400 dark:text-rose-500 mr-2 mt-0.5">•</span>
+          <a href="https://tieba.baidu.com/home/main?id=tb.1.7f262ae1.5_dXQ2Jp0F0MH9YJtgM2Ew" target="_blank" rel="noopener noreferrer" class="text-indigo-500 dark:text-indigo-400 hover:underline">遥遥心航</a>
+        </li>
+        <li class="flex items-start">
+          <span class="text-rose-400 dark:text-rose-500 mr-2 mt-0.5">•</span>
+          <a href="https://github.com/lgernier" target="_blank" rel="noopener noreferrer" class="text-indigo-500 dark:text-indigo-400 hover:underline">lgernier</a>
+        </li>
+        <li class="flex items-start">
+          <span class="text-rose-400 dark:text-rose-500 mr-2 mt-0.5">•</span>
+          <a href="https://github.com/solarhell/fontObfuscator" target="_blank" rel="noopener noreferrer" class="text-indigo-500 dark:text-indigo-400 hover:underline">fontObfuscator</a>
+        </li>
+        <li class="flex items-start">
+          <span class="text-rose-400 dark:text-rose-500 mr-2 mt-0.5">•</span>
+          <a href="https://github.com/cnwxi/epub_tool?tab=readme-ov-file" target="_blank" rel="noopener noreferrer" class="text-indigo-500 dark:text-indigo-400 hover:underline">epub_tool</a>
+        </li>
+      </ul>
+    </div>
   </div>
 </template>
