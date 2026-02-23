@@ -103,6 +103,68 @@ func (a *App) findBackendBinary() string {
 	return ""
 }
 
+// GetLogFilePath 返回日志文件的完整路径
+// 搜索路径与 findBackendBinary() 一致，在 Python 后端可执行文件所在目录下查找 log.txt
+func (a *App) GetLogFilePath() (string, error) {
+	binaryName := "converter-backend"
+	if runtime.GOOS == "windows" {
+		binaryName += ".exe"
+	}
+
+	ex, err := os.Executable()
+	if err != nil {
+		return "", fmt.Errorf("无法获取可执行文件路径: %s", err)
+	}
+	exPath := filepath.Dir(ex)
+	root := projectRoot()
+
+	searchPaths := []string{
+		filepath.Join("backend-bin", binaryName),
+		filepath.Join(exPath, "backend-bin", binaryName),
+		filepath.Join(exPath, binaryName),
+		filepath.Join(root, "backend-bin", binaryName),
+	}
+
+	if runtime.GOOS == "darwin" {
+		searchPaths = append(searchPaths,
+			filepath.Join(exPath, "..", "Resources", "backend-bin", binaryName),
+		)
+	}
+
+	for _, p := range searchPaths {
+		if _, err := os.Stat(p); err == nil {
+			logPath := filepath.Join(filepath.Dir(p), "log.txt")
+			if _, err := os.Stat(logPath); err == nil {
+				return logPath, nil
+			}
+		}
+	}
+
+	return "", fmt.Errorf("日志文件未找到")
+}
+
+// OpenLogFile 使用系统默认程序打开日志文件
+func (a *App) OpenLogFile() error {
+	logPath, err := a.GetLogFilePath()
+	if err != nil {
+		return err
+	}
+
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "darwin":
+		cmd = exec.Command("open", logPath)
+	case "windows":
+		cmd = exec.Command("cmd", "/c", "start", "", logPath)
+	default:
+		cmd = exec.Command("xdg-open", logPath)
+	}
+
+	return cmd.Start()
+}
+
+
+
 // RunBackend executes the backend with arguments.
 // Returns BackendResult with separate stdout/stderr so frontend can handle them independently.
 func (a *App) RunBackend(args []string) (*BackendResult, error) {

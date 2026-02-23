@@ -16,13 +16,8 @@ from hashlib import md5 as hashlibmd5
 
 try:
     from ..log import logwriter
-except:
-    from .log import logwriter
-
-try:
-    from .epub_utils import get_relpath, get_bookpath
 except ImportError:
-    from epub_utils import get_relpath, get_bookpath
+    from .log import logwriter
 
 logger = logwriter()
 
@@ -604,8 +599,46 @@ class EpubTool:
                 else:
                     return match.group()
 
+            def re_media_attr(match):
+                href = match.group(3)
+                href = unquote(href).strip()
+                bkpath = get_bookpath(href, xhtml_bkpath)
+                bkpath = check_link(xhtml_bkpath, bkpath, href, self)
+                if not bkpath:
+                    return match.group()
+
+                if href.lower().endswith(
+                    (".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp", ".svg")
+                ):
+                    filename = re_path_map["image"][bkpath]
+                    return match.group(1) + "../Images/" + filename + match.group(4)
+                elif href.lower().endswith(".mp3"):
+                    filename = re_path_map["audio"][bkpath]
+                    return match.group(1) + "../Audio/" + filename + match.group(4)
+                elif href.lower().endswith(".mp4"):
+                    filename = re_path_map["video"][bkpath]
+                    return match.group(1) + "../Video/" + filename + match.group(4)
+                elif href.lower().endswith(".js"):
+                    filename = re_path_map["other"][bkpath]
+                    return match.group(1) + "../Misc/" + filename + match.group(4)
+                else:
+                    return match.group()
+
             text = re.sub(r"(<[^>]* src=([\'\"]))(.*?)(\2[^>]*>)", re_src, text)
             text = re.sub(r"(<[^>]* poster=([\'\"]))(.*?)(\2[^>]*>)", re_poster, text)
+            text = re.sub(
+                r"(<[^>]* placeholder=([\'\"]))(.*?)(\2[^>]*>)", re_media_attr, text
+            )
+            text = re.sub(
+                r"(<[^>]* activestate=([\'\"]))(.*?)(\2[^>]*>)",
+                re_media_attr,
+                text,
+            )
+            text = re.sub(
+                r"(<[^>]* zy-cover-pic=([\'\"]))(.*?)(\2[^>]*>)",
+                re_media_attr,
+                text,
+            )
 
             # 修改 url
             def re_url(match):
@@ -861,6 +894,48 @@ class EpubTool:
             logger.write("临时文件不存在或已被删除。")
 
 
+# 相对路径计算函数
+def get_relpath(from_path, to_path):
+    # from_path 和 to_path 都需要是绝对路径
+    from_path = re.split(r"[\\/]", from_path)
+    to_path = re.split(r"[\\/]", to_path)
+    while from_path[0] == to_path[0]:
+        from_path.pop(0), to_path.pop(0)
+    to_path = "../" * (len(from_path) - 1) + "/".join(to_path)
+    return to_path
+
+
+# 计算bookpath
+def get_bookpath(relative_path, refer_bkpath):
+    # relative_path 相对路径，一般是href
+    # refer_bkpath 参考的绝对路径
+
+    relative_ = re.split(r"[\\/]", relative_path)
+    refer_ = re.split(r"[\\/]", refer_bkpath)
+
+    back_step = 0
+    while relative_[0] == "..":
+        back_step += 1
+        relative_.pop(0)
+
+    if len(refer_) <= 1:
+        return "/".join(relative_)
+    else:
+        refer_.pop(-1)
+
+    if back_step < 1:
+        return "/".join(refer_ + relative_)
+    elif back_step > len(refer_):
+        return "/".join(relative_)
+
+    # len(refer_) > 1 and back_setp <= len(refer_):
+    while back_step > 0 and len(refer_) > 0:
+        refer_.pop(-1)
+        back_step -= 1
+
+    return "/".join(refer_ + relative_)
+
+
 def epub_sources():
     if len(sys.argv) <= 1:
         return sys.argv
@@ -874,6 +949,19 @@ def epub_sources():
             if path.exists(epub_src):
                 epub_srcs.append(epub_src)
     return epub_srcs
+
+def check_zhangyue_drm(epub_zip) -> bool:
+    """检查 EPUB 是否为掌阅 DRM 加密"""
+    try:
+        if "META-INF/encryption.xml" in epub_zip.namelist():
+            content = epub_zip.read("META-INF/encryption.xml").decode("utf-8")
+            if "zhangyue" in content.lower():
+                return True
+    except Exception:
+        pass
+    return False
+
+
 
 
 def run(epub_src, output_path=None):
@@ -889,6 +977,11 @@ def run(epub_src, output_path=None):
             epub.close_files()
             epub.fail_del_target()
             return "skip"
+        if check_zhangyue_drm(epub.epub):
+            logger.write("警告: 该文件为掌阅(ZhangYue)DRM加密书籍，因版权原因不支持解密！")
+            epub.close_files()
+            epub.fail_del_target()
+            return "zhangyue_drm"
         epub.restructure()  # 重构
         el = epub.errorLink_log.copy()
         del_keys = []

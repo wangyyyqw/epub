@@ -8,11 +8,10 @@ from os import path
 from urllib.parse import unquote
 from xml.etree import ElementTree
 import os
-import shutil
 
 try:
     from ..log import logwriter
-except:
+except ImportError:
     from .log import logwriter
 
 try:
@@ -334,20 +333,6 @@ class EpubTool:
             zipfile.ZIP_STORED,
         )
 
-    def _stream_copy_file(self, src_path, dest_path):
-        """
-        Stream copy a file from source epub to target epub to avoid memory issues with large files.
-        """
-        try:
-            with self.epub.open(src_path, 'r') as source_file:
-                # Use ZipInfo to specify compression
-                zinfo = zipfile.ZipInfo(filename=dest_path)
-                zinfo.compress_type = zipfile.ZIP_DEFLATED
-                with self.tgt_epub.open(zinfo, 'w') as target_file:
-                    shutil.copyfileobj(source_file, target_file)
-        except Exception as e:
-            logger.write(f"Error streaming file {src_path} to {dest_path}: {e}")
-
     # 重构
     def restructure(self):
         self.tgt_epub = self.create_tgt_epub()
@@ -568,7 +553,61 @@ class EpubTool:
                 else:
                     return match.group()
 
+            def re_poster(match):
+                href = match.group(3)
+                href = unquote(href).strip()
+                bkpath = get_bookpath(href, xhtml_bkpath)
+                bkpath = check_link(xhtml_bkpath, bkpath, href, self)
+                if not bkpath:
+                    return match.group()
+                if href.lower().endswith(
+                    (".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp", ".svg")
+                ):
+                    filename = re_path_map["image"][bkpath]
+                    return match.group(1) + "../Images/" + filename + match.group(4)
+                else:
+                    return match.group()
+
+            def re_media_attr(match):
+                href = match.group(3)
+                href = unquote(href).strip()
+                bkpath = get_bookpath(href, xhtml_bkpath)
+                bkpath = check_link(xhtml_bkpath, bkpath, href, self)
+                if not bkpath:
+                    return match.group()
+
+                if href.lower().endswith(
+                    (".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp", ".svg")
+                ):
+                    filename = re_path_map["image"][bkpath]
+                    return match.group(1) + "../Images/" + filename + match.group(4)
+                elif href.lower().endswith(".mp3"):
+                    filename = re_path_map["audio"][bkpath]
+                    return match.group(1) + "../Audio/" + filename + match.group(4)
+                elif href.lower().endswith(".mp4"):
+                    filename = re_path_map["video"][bkpath]
+                    return match.group(1) + "../Video/" + filename + match.group(4)
+                elif href.lower().endswith(".js"):
+                    filename = re_path_map["other"][bkpath]
+                    return match.group(1) + "../Misc/" + filename + match.group(4)
+                else:
+                    return match.group()
+
             text = re.sub(r"(<[^>]* src=([\'\"]))(.*?)(\2[^>]*>)", re_src, text)
+            text = re.sub(r"(<[^>]* poster=([\'\"]))(.*?)(\2[^>]*>)", re_poster, text)
+            text = re.sub(
+                r"(<[^>]* placeholder=([\'\"]))(.*?)(\2[^>]*>)", re_media_attr, text
+            )
+            text = re.sub(
+                r"(<[^>]* activestate=([\'\"]))(.*?)(\2[^>]*>)",
+                re_media_attr,
+                text,
+            )
+            text = re.sub(
+                r"(<[^>]* zy-cover-pic=([\'\"]))(.*?)(\2[^>]*>)",
+                re_media_attr,
+                text,
+            )
 
             # 修改 url
             def re_url(match):
@@ -648,19 +687,49 @@ class EpubTool:
             )
         # 图片
         for img_bkpath, new_name in re_path_map["image"].items():
-            self._stream_copy_file(img_bkpath, "OEBPS/Images/" + new_name)
+            try:
+                img = self.epub.read(img_bkpath)
+            except:
+                continue
+            self.tgt_epub.writestr(
+                "OEBPS/Images/" + new_name, img, zipfile.ZIP_DEFLATED
+            )
         # 字体
         for font_bkpath, new_name in re_path_map["font"].items():
-            self._stream_copy_file(font_bkpath, "OEBPS/Fonts/" + new_name)
+            try:
+                font = self.epub.read(font_bkpath)
+            except:
+                continue
+            self.tgt_epub.writestr(
+                "OEBPS/Fonts/" + new_name, font, zipfile.ZIP_DEFLATED
+            )
         # 音频
         for audio_bkpath, new_name in re_path_map["audio"].items():
-            self._stream_copy_file(audio_bkpath, "OEBPS/Audio/" + new_name)
+            try:
+                audio = self.epub.read(audio_bkpath)
+            except:
+                continue
+            self.tgt_epub.writestr(
+                "OEBPS/Audio/" + new_name, audio, zipfile.ZIP_DEFLATED
+            )
         # 视频
         for video_bkpath, new_name in re_path_map["video"].items():
-            self._stream_copy_file(video_bkpath, "OEBPS/Video/" + new_name)
+            try:
+                video = self.epub.read(video_bkpath)
+            except:
+                continue
+            self.tgt_epub.writestr(
+                "OEBPS/Video/" + new_name, video, zipfile.ZIP_DEFLATED
+            )
         # 其他
         for font_bkpath, new_name in re_path_map["other"].items():
-            self._stream_copy_file(font_bkpath, "OEBPS/Misc/" + new_name)
+            try:
+                other = self.epub.read(font_bkpath)
+            except:
+                continue
+            self.tgt_epub.writestr(
+                "OEBPS/Misc/" + new_name, other, zipfile.ZIP_DEFLATED
+            )
         # OPF
         manifest_text = "<manifest>"
 
@@ -724,9 +793,7 @@ class EpubTool:
         self.tgt_epub.writestr(
             "OEBPS/content.opf", bytes(opf, encoding="utf-8"), zipfile.ZIP_DEFLATED
         )
-        logger.write("Writing content.opf done. Closing files...")
         self.close_files()
-        logger.write("Files closed successfully.")
 
     def close_files(self):
         if self.epub:
@@ -740,6 +807,48 @@ class EpubTool:
             logger.write(f"删除临时文件: {self.file_write_path}")
         else:
             logger.write("临时文件不存在或已被删除。")
+
+
+# 相对路径计算函数
+def get_relpath(from_path, to_path):
+    # from_path 和 to_path 都需要是绝对路径
+    from_path = re.split(r"[\\/]", from_path)
+    to_path = re.split(r"[\\/]", to_path)
+    while from_path[0] == to_path[0]:
+        from_path.pop(0), to_path.pop(0)
+    to_path = "../" * (len(from_path) - 1) + "/".join(to_path)
+    return to_path
+
+
+# 计算bookpath
+def get_bookpath(relative_path, refer_bkpath):
+    # relative_path 相对路径，一般是href
+    # refer_bkpath 参考的绝对路径
+
+    relative_ = re.split(r"[\\/]", relative_path)
+    refer_ = re.split(r"[\\/]", refer_bkpath)
+
+    back_step = 0
+    while relative_[0] == "..":
+        back_step += 1
+        relative_.pop(0)
+
+    if len(refer_) <= 1:
+        return "/".join(relative_)
+    else:
+        refer_.pop(-1)
+
+    if back_step < 1:
+        return "/".join(refer_ + relative_)
+    elif back_step > len(refer_):
+        return "/".join(relative_)
+
+    # len(refer_) > 1 and back_setp <= len(refer_):
+    while back_step > 0 and len(refer_) > 0:
+        refer_.pop(-1)
+        back_step -= 1
+
+    return "/".join(refer_ + relative_)
 
 
 def epub_sources():
@@ -763,16 +872,9 @@ def run(epub_src, output_path=None):
         if epub_src.lower().endswith("_reformat.epub"):
             logger.write("警告: 该文件已经重排，无需再次处理！")
             return "skip"
-        
-        logger.write("正在初始化 EpubTool (v1)...")
         epub = EpubTool(epub_src)
-        
-        logger.write("设置输出路径...")
         epub.set_output_path(output_path)
-        
-        logger.write("开始详细重构 (Detailed Restructure)...")
         epub.restructure()  # 重构
-        logger.write("Restructure function returned.")
         el = epub.errorLink_log.copy()
         del_keys = []
         for file_path, log in epub.errorLink_log.items():

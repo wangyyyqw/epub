@@ -17,6 +17,16 @@ const regexPattern = ref('')
 const loading = ref(false)
 const outputLog = ref('')
 const logContainer = ref(null)
+const operationCompleted = ref(false)
+
+// Font encrypt target selection state
+const fontTargets = ref({ font_families: [], xhtml_files: [] })
+const selectedFontFamilies = ref([])
+const selectedXhtmlFiles = ref([])
+const showFontTargetSelector = ref(false)
+
+// OPF viewer state
+const opfContent = ref('')
 
 watch(() => props.activeTool, (newVal) => {
   if (newVal) {
@@ -26,6 +36,12 @@ watch(() => props.activeTool, (newVal) => {
     fontPath.value = ''
     regexPattern.value = ''
     outputLog.value = ''
+    operationCompleted.value = false
+    fontTargets.value = { font_families: [], xhtml_files: [] }
+    selectedFontFamilies.value = []
+    selectedXhtmlFiles.value = []
+    showFontTargetSelector.value = false
+    opfContent.value = ''
   }
 }, { immediate: true })
 
@@ -37,6 +53,7 @@ const operationsMap = {
   convert_version: { label: '版本转换', desc: 'EPUB2 与 EPUB3 相互转换', details: '在 EPUB2.0 和 EPUB3.0 规范之间进行转换。', category: 'format', hasMode: true, modes: [{ value: '3.0', label: '转为 EPUB3' }, { value: '2.0', label: '转为 EPUB2' }] },
   convert_chinese: { label: '简繁转换', desc: '简体中文与繁体中文互转', details: '基于词组级别的精确转换，支持简转繁和繁转简双向转换。', category: 'format', hasMode: true, modes: [{ value: 's2t', label: '简体 → 繁体' }, { value: 't2s', label: '繁体 → 简体' }] },
   font_subset: { label: '字体子集化', desc: '精简 EPUB 内嵌字体，仅保留用到的字符', details: '分析 EPUB 内容中实际使用的字符，生成最小化的字体子集，可大幅缩减文件体积。', category: 'format' },
+  view_opf: { label: 'OPF 查看', desc: '查看 EPUB 的 OPF 文件内容和内部结构', details: '从 EPUB 中提取 OPF 文件内容，以格式化 XML 形式展示，同时列出 EPUB 内部文件结构。', category: 'format' },
   img_compress: { label: '图片压缩', desc: '压缩 EPUB 中所有图片的体积', details: '在保持可接受画质的前提下压缩图片，有效减小 EPUB 文件大小。', category: 'image' },
   convert_image_format: { label: '图片格式转换', desc: '在图片和 WebP 格式之间互转', details: 'WebP 格式可大幅减小体积，传统图片格式兼容性更好。', category: 'image', hasMode: true, modes: [{ value: 'img_to_webp', label: '图片 → WebP' }, { value: 'webp_to_img', label: 'WebP → 图片' }] },
   phonetic: { label: '生僻字注音', desc: '为 EPUB 中的生僻字添加拼音注音', details: '自动识别生僻字并添加 Ruby 拼音标注，方便阅读生僻汉字。', category: 'annotate' },
@@ -128,11 +145,129 @@ const scrollLogToBottom = async () => {
 
 const fileName = (p) => p.split(/[\\/]/).pop()
 
+const scanFontTargets = async () => {
+  if (inputPaths.value.length === 0) {
+    toast?.warning?.('请先选择输入文件')
+    return
+  }
+  loading.value = true
+  const filePath = inputPaths.value[0]
+  const name = fileName(filePath)
+  outputLog.value = `▶ 扫描字体加密目标: ${name}\n${'─'.repeat(40)}\n`
+  scrollLogToBottom()
+
+  const args = ['--plugin', 'epub_tool', '--operation', 'list_font_targets', '--input-path', filePath]
+
+  try {
+    const result = await window.go.main.App.RunBackend(args)
+    if (result.stderr) {
+      outputLog.value += result.stderr + '\n'
+      scrollLogToBottom()
+    }
+    const targets = JSON.parse(result.stdout)
+    fontTargets.value = targets
+
+    if (targets.font_families.length === 0 && targets.xhtml_files.length === 0) {
+      toast?.warning?.('该 EPUB 无可加密的字体族或 XHTML 文件')
+      outputLog.value += '⚠ 未找到可加密的字体族或 XHTML 文件\n'
+      loading.value = false
+      scrollLogToBottom()
+      return
+    }
+    if (targets.font_families.length === 0) {
+      toast?.warning?.('该 EPUB 无可加密的字体族')
+      outputLog.value += '⚠ 未找到可加密的字体族\n'
+    }
+    if (targets.xhtml_files.length === 0) {
+      toast?.warning?.('该 EPUB 无可加密的 XHTML 文件')
+      outputLog.value += '⚠ 未找到可加密的 XHTML 文件\n'
+    }
+
+    // Default: select all
+    selectedFontFamilies.value = [...targets.font_families]
+    selectedXhtmlFiles.value = [...targets.xhtml_files]
+    showFontTargetSelector.value = true
+
+    outputLog.value += `✅ 扫描完成: 发现 ${targets.font_families.length} 个字体族, ${targets.xhtml_files.length} 个 XHTML 文件\n`
+    toast?.success?.(`扫描完成，请选择要加密的目标`)
+  } catch (err) {
+    outputLog.value += `❌ 扫描失败: ${String(err)}\n`
+    toast?.error?.('扫描字体加密目标失败，请重新选择文件')
+  }
+  loading.value = false
+  scrollLogToBottom()
+}
+
+const toggleAllFontFamilies = () => {
+  selectedFontFamilies.value = [...fontTargets.value.font_families]
+}
+
+const invertFontFamilies = () => {
+  const current = new Set(selectedFontFamilies.value)
+  selectedFontFamilies.value = fontTargets.value.font_families.filter(f => !current.has(f))
+}
+
+const toggleAllXhtmlFiles = () => {
+  selectedXhtmlFiles.value = [...fontTargets.value.xhtml_files]
+}
+
+const invertXhtmlFiles = () => {
+  const current = new Set(selectedXhtmlFiles.value)
+  selectedXhtmlFiles.value = fontTargets.value.xhtml_files.filter(f => !current.has(f))
+}
+
+const cancelFontTargetSelection = () => {
+  showFontTargetSelector.value = false
+}
+
 const runTool = async () => {
   if (inputPaths.value.length === 0 || !selectedOperation.value) {
     toast?.warning?.('请先选择输入文件')
     return
   }
+
+  // Intercept encrypt_font: scan first if target selector not shown yet
+  if (selectedOperation.value === 'encrypt_font' && !showFontTargetSelector.value) {
+    await scanFontTargets()
+    return
+  }
+
+  // Special handling for view_opf: only process first file, display OPF content
+  if (selectedOperation.value === 'view_opf') {
+    loading.value = true
+    opfContent.value = ''
+    const filePath = inputPaths.value[0]
+    const name = fileName(filePath)
+    outputLog.value = `▶ OPF 查看: ${name}\n${'─'.repeat(40)}\n`
+    scrollLogToBottom()
+
+    const args = ['--plugin', 'epub_tool', '--operation', 'view_opf', '--input-path', filePath]
+
+    try {
+      const result = await window.go.main.App.RunBackend(args)
+      if (result.stderr) {
+        outputLog.value += result.stderr + '\n'
+      }
+      if (result.stdout) {
+        // Extract OPF content between markers
+        const opfMatch = result.stdout.match(/=== OPF Content ===([\s\S]*?)(?==== File List ===|$)/)
+        if (opfMatch) {
+          opfContent.value = opfMatch[1].trim()
+        }
+        outputLog.value += result.stdout + '\n'
+      }
+      outputLog.value += `\n✅ OPF 查看完成\n`
+      toast?.success?.('OPF 查看完成')
+    } catch (err) {
+      outputLog.value += `❌ 失败: ${String(err)}\n`
+      toast?.error?.('OPF 查看失败')
+    }
+    loading.value = false
+    operationCompleted.value = true
+    scrollLogToBottom()
+    return
+  }
+
   loading.value = true
   const total = inputPaths.value.length
   let successCount = 0
@@ -151,6 +286,16 @@ const runTool = async () => {
     if (outputPath.value) args.push('--output-path', outputPath.value)
     if (regexPattern.value && needsRegex.value) args.push('--regex-pattern', regexPattern.value)
 
+    // Add font encrypt target arguments when user has made selections
+    if (selectedOperation.value === 'encrypt_font' && showFontTargetSelector.value) {
+      if (selectedFontFamilies.value.length > 0) {
+        args.push('--target-font-families', ...selectedFontFamilies.value)
+      }
+      if (selectedXhtmlFiles.value.length > 0) {
+        args.push('--target-xhtml-files', ...selectedXhtmlFiles.value)
+      }
+    }
+
     if (['convert_chinese', 'convert_image_format'].includes(selectedOperation.value)) {
       const opIndex = args.indexOf('--operation')
       if (opIndex > -1) args[opIndex + 1] = selectedMode.value
@@ -165,7 +310,13 @@ const runTool = async () => {
       outputLog.value += `  ✅ 完成\n`
       successCount++
     } catch (err) {
-      outputLog.value += `  ❌ 失败: ${String(err)}\n`
+      const errStr = String(err)
+      if (errStr.includes('ZHANGYUE_DRM') || errStr.includes('zhangyue_drm')) {
+        outputLog.value += `  ⚠️ 该文件为掌阅(ZhangYue)DRM加密书籍，因版权保护原因不支持解密处理\n`
+        toast?.warning?.('检测到掌阅DRM加密，不支持解密')
+      } else {
+        outputLog.value += `  ❌ 失败: ${errStr}\n`
+      }
       failCount++
     }
     scrollLogToBottom()
@@ -174,6 +325,14 @@ const runTool = async () => {
   outputLog.value += `\n${'─'.repeat(40)}\n`
   outputLog.value += `📊 执行结果: 成功 ${successCount}，失败 ${failCount}，共 ${total} 个文件\n`
   loading.value = false
+  operationCompleted.value = true
+  // Reset font target selector after encrypt_font execution
+  if (selectedOperation.value === 'encrypt_font') {
+    showFontTargetSelector.value = false
+    fontTargets.value = { font_families: [], xhtml_files: [] }
+    selectedFontFamilies.value = []
+    selectedXhtmlFiles.value = []
+  }
   scrollLogToBottom()
   if (failCount === 0) {
     toast?.success?.(`全部完成（${successCount} 个文件）`)
@@ -182,10 +341,25 @@ const runTool = async () => {
   }
 }
 
+const openLogFile = async () => {
+  try {
+    await window.go.main.App.OpenLogFile()
+  } catch (err) {
+    toast?.error?.('打开日志文件失败: ' + String(err))
+  }
+}
+
 const copyLog = async () => {
   try {
     await navigator.clipboard.writeText(outputLog.value)
     toast?.success?.('已复制日志到剪贴板')
+  } catch { toast?.error?.('复制失败') }
+}
+
+const copyOpfContent = async () => {
+  try {
+    await navigator.clipboard.writeText(opfContent.value)
+    toast?.success?.('已复制 OPF 内容到剪贴板')
   } catch { toast?.error?.('复制失败') }
 }
 
@@ -328,6 +502,77 @@ const clearLog = () => { outputLog.value = '' }
         </div>
       </div>
 
+      <!-- Font Encrypt Target Selector -->
+      <div v-if="showFontTargetSelector" class="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-100 dark:border-gray-700 space-y-5 animate-slide-in">
+        <h2 class="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">字体加密目标选择</h2>
+
+        <!-- Font Families Section -->
+        <div class="space-y-3">
+          <div class="flex items-center justify-between">
+            <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+              字体族
+              <span class="ml-1 text-xs text-gray-400 font-normal">({{ selectedFontFamilies.length }}/{{ fontTargets.font_families.length }})</span>
+            </label>
+            <div class="flex space-x-2">
+              <button @click="toggleAllFontFamilies" class="text-xs px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">全选</button>
+              <button @click="invertFontFamilies" class="text-xs px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">反选</button>
+            </div>
+          </div>
+          <div v-if="fontTargets.font_families.length === 0" class="text-xs text-gray-400 dark:text-gray-500 italic py-2">无可用字体族</div>
+          <div v-else class="max-h-40 overflow-y-auto space-y-1 rounded-lg border border-gray-100 dark:border-gray-700 p-2 bg-gray-50 dark:bg-gray-900/50">
+            <label v-for="family in fontTargets.font_families" :key="family"
+              class="flex items-center px-2 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer transition-colors"
+            >
+              <input type="checkbox" :value="family" v-model="selectedFontFamilies"
+                class="w-3.5 h-3.5 rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500 dark:bg-gray-800"
+              >
+              <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">{{ family }}</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- XHTML Files Section -->
+        <div class="space-y-3">
+          <div class="flex items-center justify-between">
+            <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+              XHTML 文件
+              <span class="ml-1 text-xs text-gray-400 font-normal">({{ selectedXhtmlFiles.length }}/{{ fontTargets.xhtml_files.length }})</span>
+            </label>
+            <div class="flex space-x-2">
+              <button @click="toggleAllXhtmlFiles" class="text-xs px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">全选</button>
+              <button @click="invertXhtmlFiles" class="text-xs px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">反选</button>
+            </div>
+          </div>
+          <div v-if="fontTargets.xhtml_files.length === 0" class="text-xs text-gray-400 dark:text-gray-500 italic py-2">无可用 XHTML 文件</div>
+          <div v-else class="max-h-48 overflow-y-auto space-y-1 rounded-lg border border-gray-100 dark:border-gray-700 p-2 bg-gray-50 dark:bg-gray-900/50">
+            <label v-for="file in fontTargets.xhtml_files" :key="file"
+              class="flex items-center px-2 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer transition-colors"
+            >
+              <input type="checkbox" :value="file" v-model="selectedXhtmlFiles"
+                class="w-3.5 h-3.5 rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500 dark:bg-gray-800"
+              >
+              <span class="ml-2 text-xs text-gray-600 dark:text-gray-400 font-mono truncate" :title="file">{{ file }}</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Confirm / Cancel Buttons -->
+        <div class="flex items-center justify-end space-x-3 pt-2 border-t border-gray-100 dark:border-gray-700">
+          <button @click="cancelFontTargetSelection"
+            class="px-4 py-2 text-sm font-medium rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+          >取消</button>
+          <button @click="runTool"
+            :disabled="selectedFontFamilies.length === 0 && selectedXhtmlFiles.length === 0"
+            :class="[
+              'px-4 py-2 text-sm font-medium rounded-lg shadow-sm text-white transition-all duration-200',
+              selectedFontFamilies.length === 0 && selectedXhtmlFiles.length === 0
+                ? 'bg-gray-300 dark:bg-gray-700 cursor-not-allowed'
+                : 'bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-600 dark:hover:bg-indigo-500'
+            ]"
+          >确认执行</button>
+        </div>
+      </div>
+
       <!-- Action Button -->
       <div class="flex items-center justify-between pt-2">
         <button v-if="outputLog" @click="clearLog"
@@ -362,6 +607,18 @@ const clearLog = () => { outputLog.value = '' }
                 <path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
               </svg>
               <span>复制</span>
+            </button>
+            <button v-if="operationCompleted" @click="openLogFile" class="inline-flex items-center space-x-1 px-2 py-0.5 text-xs text-gray-400 hover:text-white hover:bg-gray-700 rounded transition-colors">
+              <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+              <span>查看日志文件</span>
+            </button>
+            <button v-if="opfContent" @click="copyOpfContent" class="inline-flex items-center space-x-1 px-2 py-0.5 text-xs text-gray-400 hover:text-white hover:bg-gray-700 rounded transition-colors">
+              <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
+              <span>复制 OPF 内容</span>
             </button>
           </div>
           <div class="flex space-x-1">
