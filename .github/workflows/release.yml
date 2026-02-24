@@ -87,7 +87,7 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist
-          Copy-Item build/bin/epub-tool-go.exe dist/
+          Copy-Item "build/bin/EPUB工具箱.exe" dist/
           New-Item -ItemType Directory -Force -Path dist/backend-bin
           Copy-Item backend-bin/converter-backend.exe dist/backend-bin/
           Compress-Archive -Path dist/* -DestinationPath EPUB工具箱-Windows-amd64.zip
@@ -139,12 +139,11 @@ jobs:
       - name: Package
         run: |
           mkdir -p dist
-          cp -r build/bin/epub-tool-go.app dist/
-          mkdir -p dist/epub-tool-go.app/Contents/Resources/backend-bin
-          cp backend-bin/converter-backend dist/epub-tool-go.app/Contents/Resources/backend-bin/
-          # 移除隔离属性，减少 Gatekeeper 问题
-          xattr -cr dist/epub-tool-go.app
-          cd dist && zip -r ../EPUB工具箱-macOS.zip epub-tool-go.app && cd ..
+          cp -r "build/bin/EPUB工具箱.app" dist/
+          mkdir -p "dist/EPUB工具箱.app/Contents/Resources/backend-bin"
+          cp backend-bin/converter-backend "dist/EPUB工具箱.app/Contents/Resources/backend-bin/"
+          xattr -cr "dist/EPUB工具箱.app"
+          cd dist && zip -r ../EPUB工具箱-macOS.zip "EPUB工具箱.app" && cd ..
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -185,8 +184,8 @@ jobs:
             | macOS | `EPUB工具箱-macOS.zip` |
 
             ---
-            > Windows 版解压后运行 `epub-tool-go.exe`
-            > macOS 版解压后若提示"已损坏"，请在终端执行：`xattr -cr epub-tool-go.app` 然后再打开
+            > Windows 版解压后运行 `EPUB工具箱.exe`
+            > macOS 版解压后若提示"已损坏"，请在终端执行：`xattr -cr EPUB工具箱.app` 然后再打开
           files: |
             EPUB工具箱-Windows-amd64.zip
             EPUB工具箱-macOS.zip
