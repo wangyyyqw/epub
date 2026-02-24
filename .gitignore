@@ -1,6 +1,7 @@
 # Build outputs
 build/bin
 release/
+epub-tool-go
 
 # Frontend
 node_modules
