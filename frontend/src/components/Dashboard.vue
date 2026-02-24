@@ -3,6 +3,14 @@ import { ref } from 'vue'
 
 const recentFiles = ref([])
 
+const openURL = async (url) => {
+  try {
+    await window.go.main.App.OpenURL(url)
+  } catch (err) {
+    console.error('Failed to open URL:', err)
+  }
+}
+
 const features = [
   { icon: 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253', label: 'TXT → EPUB', desc: '将纯文本文件转换为标准 EPUB 电子书，支持自动章节识别和分层目录。', color: 'indigo' },
   { icon: 'M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z', label: '加密 / 解密', desc: '对 EPUB 进行 DRM 加密或解密处理，支持字体混淆加密。', color: 'amber' },
@@ -93,19 +101,19 @@ const colorMap = {
       <ul class="space-y-2 text-sm text-gray-600 dark:text-gray-400">
         <li class="flex items-start">
           <span class="text-rose-400 dark:text-rose-500 mr-2 mt-0.5">•</span>
-          <a href="https://tieba.baidu.com/home/main?id=tb.1.7f262ae1.5_dXQ2Jp0F0MH9YJtgM2Ew" target="_blank" rel="noopener noreferrer" class="text-indigo-500 dark:text-indigo-400 hover:underline">遥遥心航</a>
+          <a @click="openURL('https://tieba.baidu.com/home/main?id=tb.1.7f262ae1.5_dXQ2Jp0F0MH9YJtgM2Ew')" class="text-indigo-500 dark:text-indigo-400 hover:underline cursor-pointer">遥遥心航</a>
         </li>
         <li class="flex items-start">
           <span class="text-rose-400 dark:text-rose-500 mr-2 mt-0.5">•</span>
-          <a href="https://github.com/lgernier" target="_blank" rel="noopener noreferrer" class="text-indigo-500 dark:text-indigo-400 hover:underline">lgernier</a>
+          <a @click="openURL('https://github.com/lgernier')" class="text-indigo-500 dark:text-indigo-400 hover:underline cursor-pointer">lgernier</a>
         </li>
         <li class="flex items-start">
           <span class="text-rose-400 dark:text-rose-500 mr-2 mt-0.5">•</span>
-          <a href="https://github.com/solarhell/fontObfuscator" target="_blank" rel="noopener noreferrer" class="text-indigo-500 dark:text-indigo-400 hover:underline">fontObfuscator</a>
+          <a @click="openURL('https://github.com/solarhell/fontObfuscator')" class="text-indigo-500 dark:text-indigo-400 hover:underline cursor-pointer">fontObfuscator</a>
         </li>
         <li class="flex items-start">
           <span class="text-rose-400 dark:text-rose-500 mr-2 mt-0.5">•</span>
-          <a href="https://github.com/cnwxi/epub_tool?tab=readme-ov-file" target="_blank" rel="noopener noreferrer" class="text-indigo-500 dark:text-indigo-400 hover:underline">epub_tool</a>
+          <a @click="openURL('https://github.com/cnwxi/epub_tool?tab=readme-ov-file')" class="text-indigo-500 dark:text-indigo-400 hover:underline cursor-pointer">epub_tool</a>
         </li>
       </ul>
     </div>

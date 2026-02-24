@@ -8,6 +8,8 @@ export function Greet(arg1:string):Promise<string>;
 
 export function OpenLogFile():Promise<void>;
 
+export function OpenURL(arg1:string):Promise<void>;
+
 export function RunBackend(arg1:Array<string>):Promise<main.BackendResult>;
 
 export function SaveFile(arg1:string):Promise<string>;

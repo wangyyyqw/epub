@@ -14,6 +14,10 @@ export function OpenLogFile() {
   return window['go']['main']['App']['OpenLogFile']();
 }
 
+export function OpenURL(arg1) {
+  return window['go']['main']['App']['OpenURL'](arg1);
+}
+
 export function RunBackend(arg1) {
   return window['go']['main']['App']['RunBackend'](arg1);
 }

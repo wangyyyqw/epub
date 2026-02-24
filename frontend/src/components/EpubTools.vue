@@ -28,6 +28,15 @@ const showFontTargetSelector = ref(false)
 // OPF viewer state
 const opfContent = ref('')
 
+// Merge file list state
+const mergeFiles = ref([])        // 合并文件列表（支持拖拽排序）
+const dragIndex = ref(-1)         // 当前拖拽项索引
+
+// Split state
+const splitTargets = ref([])           // 章节结构列表
+const selectedSplitPoints = ref([])    // 用户选中的拆分点索引
+const showSplitTargetSelector = ref(false)  // 是否显示拆分点选择面板
+
 watch(() => props.activeTool, (newVal) => {
   if (newVal) {
     selectedOperation.value = newVal
@@ -42,6 +51,11 @@ watch(() => props.activeTool, (newVal) => {
     selectedXhtmlFiles.value = []
     showFontTargetSelector.value = false
     opfContent.value = ''
+    mergeFiles.value = []
+    dragIndex.value = -1
+    splitTargets.value = []
+    selectedSplitPoints.value = []
+    showSplitTargetSelector.value = false
   }
 }, { immediate: true })
 
@@ -54,6 +68,8 @@ const operationsMap = {
   convert_chinese: { label: '简繁转换', desc: '简体中文与繁体中文互转', details: '基于词组级别的精确转换，支持简转繁和繁转简双向转换。', category: 'format', hasMode: true, modes: [{ value: 's2t', label: '简体 → 繁体' }, { value: 't2s', label: '繁体 → 简体' }] },
   font_subset: { label: '字体子集化', desc: '精简 EPUB 内嵌字体，仅保留用到的字符', details: '分析 EPUB 内容中实际使用的字符，生成最小化的字体子集，可大幅缩减文件体积。', category: 'format' },
   view_opf: { label: 'OPF 查看', desc: '查看 EPUB 的 OPF 文件内容和内部结构', details: '从 EPUB 中提取 OPF 文件内容，以格式化 XML 形式展示，同时列出 EPUB 内部文件结构。', category: 'format' },
+  merge_epub: { label: '合并 EPUB', desc: '将多个 EPUB 文件合并为一个', details: '按指定顺序合并多个 EPUB 文件，自动处理资源冲突和目录合并。支持拖拽排序调整合并顺序。', category: 'format' },
+  split_epub: { label: '拆分 EPUB', desc: '按章节将 EPUB 拆分为多个文件', details: '扫描 EPUB 章节结构，选择拆分点后生成多个独立的 EPUB 文件。', category: 'format' },
   img_compress: { label: '图片压缩', desc: '压缩 EPUB 中所有图片的体积', details: '在保持可接受画质的前提下压缩图片，有效减小 EPUB 文件大小。', category: 'image' },
   convert_image_format: { label: '图片格式转换', desc: '在图片和 WebP 格式之间互转', details: 'WebP 格式可大幅减小体积，传统图片格式兼容性更好。', category: 'image', hasMode: true, modes: [{ value: 'img_to_webp', label: '图片 → WebP' }, { value: 'webp_to_img', label: 'WebP → 图片' }] },
   phonetic: { label: '生僻字注音', desc: '为 EPUB 中的生僻字添加拼音注音', details: '自动识别生僻字并添加 Ruby 拼音标注，方便阅读生僻汉字。', category: 'annotate' },
@@ -232,6 +248,12 @@ const runTool = async () => {
     return
   }
 
+  // Intercept split_epub: scan first if target selector not shown yet
+  if (selectedOperation.value === 'split_epub' && !showSplitTargetSelector.value) {
+    await scanSplitTargets()
+    return
+  }
+
   // Special handling for view_opf: only process first file, display OPF content
   if (selectedOperation.value === 'view_opf') {
     loading.value = true
@@ -264,6 +286,77 @@ const runTool = async () => {
     }
     loading.value = false
     operationCompleted.value = true
+    scrollLogToBottom()
+    return
+  }
+
+  // Special handling for merge_epub: use mergeFiles and --input-paths
+  if (selectedOperation.value === 'merge_epub') {
+    if (mergeFiles.value.length < 2) {
+      toast?.warning?.('请至少添加 2 个 EPUB 文件')
+      return
+    }
+    loading.value = true
+    outputLog.value = `▶ 合并 EPUB（共 ${mergeFiles.value.length} 个文件）\n${'─'.repeat(40)}\n`
+    mergeFiles.value.forEach((p, i) => {
+      outputLog.value += `  ${i + 1}. ${fileName(p)}\n`
+    })
+    outputLog.value += `${'─'.repeat(40)}\n`
+    scrollLogToBottom()
+
+    const args = ['--plugin', 'epub_tool', '--operation', 'merge', '--input-paths', ...mergeFiles.value]
+    if (outputPath.value) args.push('--output-path', outputPath.value)
+
+    try {
+      const result = await window.go.main.App.RunBackend(args)
+      if (result.stderr) outputLog.value += result.stderr + '\n'
+      if (result.stdout) outputLog.value += result.stdout + '\n'
+      outputLog.value += `\n✅ 合并完成\n`
+      toast?.success?.('EPUB 合并完成')
+    } catch (err) {
+      outputLog.value += `❌ 合并失败: ${String(err)}\n`
+      toast?.error?.('EPUB 合并失败')
+    }
+    loading.value = false
+    operationCompleted.value = true
+    scrollLogToBottom()
+    return
+  }
+
+  // Special handling for split_epub: use selectedSplitPoints and --split-points
+  if (selectedOperation.value === 'split_epub' && showSplitTargetSelector.value) {
+    if (selectedSplitPoints.value.length === 0) {
+      toast?.warning?.('请至少选择一个拆分点')
+      return
+    }
+    loading.value = true
+    const filePath = inputPaths.value[0]
+    const name = fileName(filePath)
+    const sortedPoints = [...selectedSplitPoints.value].sort((a, b) => a - b)
+    const splitPointsStr = sortedPoints.join(',')
+    outputLog.value = `▶ 拆分 EPUB: ${name}\n${'─'.repeat(40)}\n`
+    outputLog.value += `  拆分点: ${splitPointsStr}\n`
+    outputLog.value += `${'─'.repeat(40)}\n`
+    scrollLogToBottom()
+
+    const args = ['--plugin', 'epub_tool', '--operation', 'split', '--input-path', filePath, '--split-points', splitPointsStr]
+    if (outputPath.value) args.push('--output-path', outputPath.value)
+
+    try {
+      const result = await window.go.main.App.RunBackend(args)
+      if (result.stderr) outputLog.value += result.stderr + '\n'
+      if (result.stdout) outputLog.value += result.stdout + '\n'
+      outputLog.value += `\n✅ 拆分完成\n`
+      toast?.success?.('EPUB 拆分完成')
+    } catch (err) {
+      outputLog.value += `❌ 拆分失败: ${String(err)}\n`
+      toast?.error?.('EPUB 拆分失败')
+    }
+    loading.value = false
+    operationCompleted.value = true
+    showSplitTargetSelector.value = false
+    splitTargets.value = []
+    selectedSplitPoints.value = []
     scrollLogToBottom()
     return
   }
@@ -364,6 +457,115 @@ const copyOpfContent = async () => {
 }
 
 const clearLog = () => { outputLog.value = '' }
+
+// --- Merge file list methods ---
+const handleMergeFileDrop = (pathsOrPath) => {
+  if (!pathsOrPath) return
+  const paths = Array.isArray(pathsOrPath) ? pathsOrPath : [pathsOrPath]
+  const epubPaths = paths.filter(p => typeof p === 'string' && p.toLowerCase().endsWith('.epub'))
+  if (epubPaths.length === 0) {
+    toast?.error?.('请选择 EPUB 文件')
+    return
+  }
+  const existing = new Set(mergeFiles.value)
+  const newPaths = epubPaths.filter(p => !existing.has(p))
+  if (newPaths.length > 0) {
+    mergeFiles.value = [...mergeFiles.value, ...newPaths]
+    toast?.success?.(`已添加 ${newPaths.length} 个文件`)
+  }
+}
+
+const selectMergeFiles = async () => {
+  try {
+    const paths = await window.go.main.App.SelectFiles()
+    if (paths && paths.length > 0) {
+      handleMergeFileDrop(paths)
+    }
+  } catch (err) { console.error(err) }
+}
+
+const removeMergeFile = (index) => {
+  mergeFiles.value.splice(index, 1)
+}
+
+const clearMergeFiles = () => {
+  mergeFiles.value = []
+}
+
+const onMergeDragStart = (index) => {
+  dragIndex.value = index
+}
+
+const onMergeDragOver = (event, index) => {
+  event.preventDefault()
+  if (dragIndex.value === -1 || dragIndex.value === index) return
+  const list = [...mergeFiles.value]
+  const dragged = list.splice(dragIndex.value, 1)[0]
+  list.splice(index, 0, dragged)
+  mergeFiles.value = list
+  dragIndex.value = index
+}
+
+const onMergeDragEnd = () => {
+  dragIndex.value = -1
+}
+
+// --- Split methods ---
+const scanSplitTargets = async () => {
+  if (inputPaths.value.length === 0) {
+    toast?.warning?.('请先选择输入文件')
+    return
+  }
+  loading.value = true
+  const filePath = inputPaths.value[0]
+  const name = fileName(filePath)
+  outputLog.value = `▶ 扫描拆分目标: ${name}\n${'─'.repeat(40)}\n`
+  scrollLogToBottom()
+
+  const args = ['--plugin', 'epub_tool', '--operation', 'list_split_targets', '--input-path', filePath]
+
+  try {
+    const result = await window.go.main.App.RunBackend(args)
+    if (result.stderr) {
+      outputLog.value += result.stderr + '\n'
+      scrollLogToBottom()
+    }
+    const targets = JSON.parse(result.stdout)
+    splitTargets.value = targets
+
+    if (targets.length === 0) {
+      toast?.warning?.('该 EPUB 无可用的章节结构')
+      outputLog.value += '⚠ 未找到可用的章节结构\n'
+      loading.value = false
+      scrollLogToBottom()
+      return
+    }
+
+    selectedSplitPoints.value = []
+    showSplitTargetSelector.value = true
+
+    outputLog.value += `✅ 扫描完成: 发现 ${targets.length} 个章节条目\n`
+    toast?.success?.('扫描完成，请选择拆分点')
+  } catch (err) {
+    outputLog.value += `❌ 扫描失败: ${String(err)}\n`
+    toast?.error?.('扫描拆分目标失败，请重新选择文件')
+  }
+  loading.value = false
+  scrollLogToBottom()
+}
+
+const toggleAllSplitPoints = () => {
+  selectedSplitPoints.value = splitTargets.value.map((_, i) => i)
+}
+
+const invertSplitPoints = () => {
+  const current = new Set(selectedSplitPoints.value)
+  selectedSplitPoints.value = splitTargets.value.map((_, i) => i).filter(i => !current.has(i))
+}
+
+const cancelSplitTargetSelection = () => {
+  showSplitTargetSelector.value = false
+}
 </script>
 
 <template>
@@ -573,6 +775,120 @@ const clearLog = () => { outputLog.value = '' }
         </div>
       </div>
 
+      <!-- Merge EPUB File List -->
+      <div v-if="selectedOperation === 'merge_epub'" class="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-100 dark:border-gray-700 space-y-4 animate-slide-in">
+        <h2 class="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">合并文件列表</h2>
+
+        <FileDropZone
+          accept=".epub,application/epub+zip"
+          :multiple="true"
+          @drop="handleMergeFileDrop"
+          @click="selectMergeFiles"
+          :disabled="false"
+        >
+          <div class="flex flex-col items-center justify-center py-4 px-4 text-center">
+            <div class="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center mb-2">
+              <svg class="w-5 h-5 text-indigo-600 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+              </svg>
+            </div>
+            <p class="text-sm font-medium text-gray-700 dark:text-gray-300">拖拽 EPUB 文件到此处添加到合并列表</p>
+            <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">或点击选择文件，支持拖拽排序调整顺序</p>
+          </div>
+        </FileDropZone>
+
+        <!-- Merge File List with Drag Reorder -->
+        <div v-if="mergeFiles.length > 0" class="space-y-1">
+          <div v-for="(p, idx) in mergeFiles" :key="p + idx"
+            draggable="true"
+            @dragstart="onMergeDragStart(idx)"
+            @dragover="onMergeDragOver($event, idx)"
+            @dragend="onMergeDragEnd"
+            :class="[
+              'flex items-center justify-between px-3 py-2 rounded-lg group cursor-grab active:cursor-grabbing transition-all',
+              dragIndex === idx
+                ? 'bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-700'
+                : 'bg-gray-50 dark:bg-gray-900/50'
+            ]"
+          >
+            <div class="flex items-center min-w-0 flex-1 mr-2">
+              <span class="text-xs font-medium text-indigo-500 dark:text-indigo-400 mr-2 flex-shrink-0 w-5 text-center">{{ idx + 1 }}</span>
+              <svg class="w-3.5 h-3.5 text-gray-300 dark:text-gray-600 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4 8h16M4 16h16" />
+              </svg>
+              <span class="text-xs text-gray-600 dark:text-gray-400 truncate" :title="p">{{ fileName(p) }}</span>
+            </div>
+            <button @click="removeMergeFile(idx)" class="text-gray-400 hover:text-red-500 transition-colors flex-shrink-0 opacity-0 group-hover:opacity-100">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <button @click="clearMergeFiles" class="text-xs text-gray-400 hover:text-red-500 transition-colors mt-1">清空全部文件</button>
+        </div>
+
+        <!-- Merge hint when < 2 files -->
+        <div v-if="mergeFiles.length < 2" class="flex items-center space-x-2 text-xs text-amber-600 dark:text-amber-400">
+          <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <span>请至少添加 2 个 EPUB 文件才能执行合并</span>
+        </div>
+      </div>
+
+      <!-- Split EPUB Target Selector -->
+      <div v-if="selectedOperation === 'split_epub' && showSplitTargetSelector" class="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-100 dark:border-gray-700 space-y-4 animate-slide-in">
+        <h2 class="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">拆分点选择</h2>
+
+        <div class="space-y-3">
+          <div class="flex items-center justify-between">
+            <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+              章节结构
+              <span class="ml-1 text-xs text-gray-400 font-normal">(已选 {{ selectedSplitPoints.length }}/{{ splitTargets.length }})</span>
+            </label>
+            <div class="flex space-x-2">
+              <button @click="toggleAllSplitPoints" class="text-xs px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">全选</button>
+              <button @click="invertSplitPoints" class="text-xs px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">反选</button>
+            </div>
+          </div>
+          <div class="max-h-64 overflow-y-auto space-y-1 rounded-lg border border-gray-100 dark:border-gray-700 p-2 bg-gray-50 dark:bg-gray-900/50">
+            <label v-for="(target, idx) in splitTargets" :key="idx"
+              class="flex items-center px-2 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer transition-colors"
+              :style="{ paddingLeft: ((target.level - 1) * 1.5 + 0.5) + 'rem' }"
+            >
+              <input type="checkbox" :value="idx" v-model="selectedSplitPoints"
+                class="w-3.5 h-3.5 rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500 dark:bg-gray-800"
+              >
+              <span class="ml-2 text-sm text-gray-700 dark:text-gray-300 truncate" :title="target.href">{{ target.title }}</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Hint when no split points selected -->
+        <div v-if="selectedSplitPoints.length === 0" class="flex items-center space-x-2 text-xs text-amber-600 dark:text-amber-400">
+          <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <span>请至少选择一个拆分点才能执行拆分</span>
+        </div>
+
+        <!-- Confirm / Cancel Buttons -->
+        <div class="flex items-center justify-end space-x-3 pt-2 border-t border-gray-100 dark:border-gray-700">
+          <button @click="cancelSplitTargetSelection"
+            class="px-4 py-2 text-sm font-medium rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+          >取消</button>
+          <button @click="runTool"
+            :disabled="selectedSplitPoints.length === 0"
+            :class="[
+              'px-4 py-2 text-sm font-medium rounded-lg shadow-sm text-white transition-all duration-200',
+              selectedSplitPoints.length === 0
+                ? 'bg-gray-300 dark:bg-gray-700 cursor-not-allowed'
+                : 'bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-600 dark:hover:bg-indigo-500'
+            ]"
+          >确认拆分</button>
+        </div>
+      </div>
+
       <!-- Action Button -->
       <div class="flex items-center justify-between pt-2">
         <button v-if="outputLog" @click="clearLog"
@@ -581,10 +897,10 @@ const clearLog = () => { outputLog.value = '' }
         <div v-else></div>
         <button
           @click="runTool"
-          :disabled="loading || inputPaths.length === 0"
+          :disabled="loading || (selectedOperation === 'merge_epub' ? mergeFiles.length < 2 : selectedOperation === 'split_epub' && showSplitTargetSelector ? selectedSplitPoints.length === 0 : inputPaths.length === 0)"
           :class="[
             'inline-flex items-center px-6 py-2.5 text-sm font-medium rounded-lg shadow-sm text-white transition-all duration-200',
-            loading || inputPaths.length === 0
+            loading || (selectedOperation === 'merge_epub' ? mergeFiles.length < 2 : selectedOperation === 'split_epub' && showSplitTargetSelector ? selectedSplitPoints.length === 0 : inputPaths.length === 0)
               ? 'bg-gray-300 dark:bg-gray-700 cursor-not-allowed'
               : 'bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-600 dark:hover:bg-indigo-500 hover:shadow-md active:scale-[0.98]'
           ]"
@@ -593,7 +909,7 @@ const clearLog = () => { outputLog.value = '' }
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
           </svg>
-          {{ loading ? '执行中...' : inputPaths.length > 1 ? `批量执行（${inputPaths.length} 个文件）` : '开始执行' }}
+          {{ loading ? '执行中...' : selectedOperation === 'merge_epub' ? `合并执行（${mergeFiles.length} 个文件）` : selectedOperation === 'split_epub' ? (showSplitTargetSelector ? `确认拆分（${selectedSplitPoints.length} 个拆分点）` : '扫描章节结构') : inputPaths.length > 1 ? `批量执行（${inputPaths.length} 个文件）` : '开始执行' }}
         </button>
       </div>
 

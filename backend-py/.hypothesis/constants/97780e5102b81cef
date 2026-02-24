@@ -1,0 +1,4 @@
+# file: /Users/aaa/Documents/github/epub-2/epub-tool-go/backend-py/plugins/epub_tool/utils/log.py
+# hypothesis_version: 6.141.1
+
+['%Y-%m-%d %H:%M:%S', '__main__', 'hello world', 'log.txt', 'utf-8', 'w']

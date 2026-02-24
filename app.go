@@ -281,3 +281,17 @@ func (a *App) SaveFile(defaultFilename string) (string, error) {
 	})
 }
 
+// OpenURL opens a URL in the default browser
+func (a *App) OpenURL(url string) error {
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "darwin":
+		cmd = exec.Command("open", url)
+	case "windows":
+		cmd = exec.Command("cmd", "/c", "start", "", url)
+	default:
+		cmd = exec.Command("xdg-open", url)
+	}
+	return cmd.Start()
+}
+

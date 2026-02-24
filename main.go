@@ -47,7 +47,7 @@ func main() {
 			WindowIsTranslucent:  true,
 			About: &mac.AboutInfo{
 				Title:   "EPUB 工具箱",
-				Message: "一站式 EPUB 电子书处理工具 v1.0.0",
+				Message: "一站式 EPUB 电子书处理工具 v1.0.1",
 			},
 		},
 	})

@@ -1,0 +1,4 @@
+# file: /Users/aaa/Documents/github/epub-2/epub-tool-go/backend-py/plugins/epub_tool/utils/split_epub.py
+# hypothesis_version: 6.141.1
+
+['  </head>', '  </manifest>', '  </metadata>', '  </navMap>', '  </ol>', '  </rootfiles>\n', '  </spine>', '  <head>', '  <manifest>', '  <navMap>', '  <ol>', '  <rootfiles>\n', '#', '%Y-%m-%dT%H:%M:%SZ', '&', '&amp;', '.css', '.html', '.xhtml', '/', '3', '<!DOCTYPE html>', '</body>', '</container>', '</html>', '</nav>', '</ncx>', '</package>', '<body>', '\\', 'a', 'application/epub+zip', 'content', 'creator', 'data:', 'date', 'dc', 'description', 'epub', 'epub:type', 'href', 'http://', 'https://', 'identifier', 'language', 'level', 'li', 'meta', 'mimetype', 'name', 'nav', 'navLabel', 'navMap', 'navPoint', 'nav_split.xhtml', 'ncx', 'ol', 'property', 'publisher', 'r', 'source', 'span', 'split-nav', 'split-ncx', 'src', 'subject', 'text', 'text/css', 'title', 'toc', 'toc_split.ncx', 'utf-8', 'w', 'xhtml']

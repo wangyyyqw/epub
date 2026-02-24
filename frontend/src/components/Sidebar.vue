@@ -9,7 +9,7 @@ const props = defineProps({
 const emit = defineEmits(['change-view', 'toggle-theme'])
 
 // Collapsible groups
-const expandedGroups = ref({ convert: true, encrypt: true, format: true, image: true, annotate: true, other: true })
+const expandedGroups = ref({ encrypt: true, format: true, image: true, annotate: true, other: true })
 const toggleGroup = (key) => { expandedGroups.value[key] = !expandedGroups.value[key] }
 
 const mainItems = [
@@ -32,6 +32,8 @@ const toolGroups = [
       { id: 'tool:convert_chinese', label: '简繁转换', icon: 'M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129' },
       { id: 'tool:font_subset', label: '字体子集化', icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z' },
       { id: 'tool:view_opf', label: 'OPF 查看', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
+      { id: 'tool:merge_epub', label: '合并 EPUB', icon: 'M17 14v6m-3-3h6M6 10h2a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v2a2 2 0 002 2zm10 0h2a2 2 0 002-2V6a2 2 0 00-2-2h-2a2 2 0 00-2 2v2a2 2 0 002 2zM6 20h2a2 2 0 002-2v-2a2 2 0 00-2-2H6a2 2 0 00-2 2v2a2 2 0 002 2z' },
+      { id: 'tool:split_epub', label: '拆分 EPUB', icon: 'M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2' },
     ]
   },
   {
