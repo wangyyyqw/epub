@@ -2,6 +2,14 @@ import argparse
 import sys
 import os
 
+# Force UTF-8 encoding on Windows to prevent Chinese characters in CLI args from being garbled
+if sys.platform == 'win32':
+    import locale
+    if sys.stdout.encoding != 'utf-8':
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    if sys.stderr.encoding != 'utf-8':
+        sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+
 # Ensure backend root is in sys.path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 

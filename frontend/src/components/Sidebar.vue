@@ -68,7 +68,7 @@ const isActive = (id) => props.currentView === id
     <!-- App Title -->
     <div class="px-4 pb-3 flex-shrink-0">
       <h1 class="text-base font-bold text-gray-800 dark:text-gray-100 tracking-tight">EPUB 工具箱</h1>
-      <p class="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">v1.0.1</p>
+      <p class="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">v1.0.2</p>
     </div>
 
     <nav class="flex-1 overflow-y-auto px-2 pb-4 space-y-1 no-scrollbar">

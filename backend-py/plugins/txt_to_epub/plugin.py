@@ -29,6 +29,7 @@ class TxtToEpubPlugin(BasePlugin):
         # Pattern arguments
         parser.add_argument("--custom-regex", default=None, help="Single regex (flat mode)")
         parser.add_argument("--patterns", default=None, help="Multiple patterns: 'regex:level:split' separated by |||")
+        parser.add_argument("--patterns-file", default=None, help="Path to UTF-8 file containing patterns string (avoids CLI encoding issues)")
         
         # Text cleaning
         parser.add_argument("--remove-empty-line", action='store_true')
@@ -54,21 +55,33 @@ class TxtToEpubPlugin(BasePlugin):
         Parse 'pattern:level:split' format.
         Returns: (pattern, level, should_split)
         """
-        parts = p.split(':')
-        pattern = parts[0]
-        level = 1
-        should_split = True
-        
-        if len(parts) >= 2:
+        parts = p.rsplit(':', maxsplit=2)
+
+        if len(parts) == 3:
+            pattern = parts[0]
             try:
                 level = int(parts[1])
             except ValueError:
-                pass
-        
-        if len(parts) >= 3:
+                # parts[1] is not a number, ':' belongs to the regex
+                # Fallback: try rsplit(':', 1)
+                fallback_parts = p.rsplit(':', maxsplit=1)
+                try:
+                    level = int(fallback_parts[1])
+                except ValueError:
+                    return p, 1, True  # entire string is regex
+                return fallback_parts[0], level, True
             should_split = parts[2].lower() in ('true', '1', 'yes', 'y')
-        
-        return pattern, level, should_split
+            return pattern, level, should_split
+
+        elif len(parts) == 2:
+            try:
+                level = int(parts[1])
+            except ValueError:
+                return p, 1, True  # entire string is regex
+            return parts[0], level, True
+
+        else:
+            return p, 1, True
 
     def run(self, args: argparse.Namespace):
         if not os.path.exists(args.txt_path):
@@ -150,13 +163,22 @@ class TxtToEpubPlugin(BasePlugin):
             print("Splitting chapters...", file=sys.stderr)
             splitter = DefaultChapterSplitter()
             
+            # Support --patterns-file to avoid Windows CLI encoding issues
+            patterns_str = args.patterns
+            if not patterns_str and args.patterns_file:
+                try:
+                    with open(args.patterns_file, 'r', encoding='utf-8') as f:
+                        patterns_str = f.read().strip()
+                except Exception as e:
+                    print(f"WARNING: Failed to read patterns file: {e}", file=sys.stderr)
+            
             chapters = []
-            if args.patterns:
+            if patterns_str:
                 pattern_list = []
                 level_list = []
                 split_list = []
                 
-                for p in args.patterns.split("|||"):
+                for p in patterns_str.split("|||"):
                     p = p.strip()
                     if not p:
                         continue

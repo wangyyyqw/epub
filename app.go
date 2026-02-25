@@ -170,6 +170,34 @@ func (a *App) OpenLogFile() error {
 func (a *App) RunBackend(args []string) (*BackendResult, error) {
 	var cmd *exec.Cmd
 
+	// On Windows, write --patterns value to a temp file to avoid CLI encoding issues with Chinese characters.
+	// Replace --patterns <value> with --patterns-file <tempfile> in the args.
+	var tempPatternsFile string
+	if runtime.GOOS == "windows" {
+		for i := 0; i < len(args)-1; i++ {
+			if args[i] == "--patterns" {
+				patternsValue := args[i+1]
+				tmpFile, err := os.CreateTemp("", "epub-patterns-*.txt")
+				if err == nil {
+					_, writeErr := tmpFile.WriteString(patternsValue)
+					tmpFile.Close()
+					if writeErr == nil {
+						tempPatternsFile = tmpFile.Name()
+						args[i] = "--patterns-file"
+						args[i+1] = tempPatternsFile
+					} else {
+						os.Remove(tmpFile.Name())
+					}
+				}
+				break
+			}
+		}
+	}
+	// Clean up temp file when done
+	if tempPatternsFile != "" {
+		defer os.Remove(tempPatternsFile)
+	}
+
 	binaryPath := a.findBackendBinary()
 
 	cwd, _ := os.Getwd()
@@ -209,6 +237,9 @@ func (a *App) RunBackend(args []string) (*BackendResult, error) {
 		}
 		cmd = exec.Command(pythonCmd, cmdArgs...)
 	}
+
+	// Ensure UTF-8 encoding for subprocess (critical for Chinese characters in regex patterns on Windows)
+	cmd.Env = append(os.Environ(), "PYTHONIOENCODING=utf-8", "PYTHONUTF8=1")
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
