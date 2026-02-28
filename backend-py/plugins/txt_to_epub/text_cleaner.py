@@ -38,21 +38,14 @@ class TextCleaner:
             text = self._whitespace_lines.sub('', text)
             text = self._multiple_newlines.sub('\n\n', text)
 
-        # 3. Fix Indentation
+        # 3. Fix Indentation: strip leading whitespace from each line
+        #    (actual indent handled by CSS text-indent, not inline spaces)
         if self.fix_indent:
             lines = text.split('\n')
             cleaned_lines = []
             for line in lines:
                 stripped = line.strip()
-                if stripped:
-                    # Skip indentation for chapter title lines
-                    if self.TITLE_PATTERN.match(stripped):
-                        cleaned_lines.append(stripped)
-                    else:
-                        # Add 2 full-width spaces (Chinese standard)
-                        cleaned_lines.append(f'{self.INDENT}{stripped}')
-                else:
-                    cleaned_lines.append('')
+                cleaned_lines.append(stripped)
             text = '\n'.join(cleaned_lines)
             
         return text

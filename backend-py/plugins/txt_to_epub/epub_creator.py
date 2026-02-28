@@ -47,7 +47,7 @@ def create_epub(
 
     style = '''
     p { margin-bottom: 1em; text-indent: 2em; }
-    h1, h2, h3, h4, h5, h6 { text-align: center; margin-top: 1em; margin-bottom: 1em; }
+    h1, h2, h3, h4, h5, h6 { text-align: center; text-indent: 0; margin-top: 1em; margin-bottom: 1em; }
     
     div.logo {
         margin: 0;
