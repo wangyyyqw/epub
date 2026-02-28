@@ -188,7 +188,7 @@ def create_epub(
             
         html_parts.append(f'<h{level}>{display_title}</h{level}>')
         
-        lines = [f'<p>{html.escape(line)}</p>' for line in content.split('\n') if line.strip()]
+        lines = [f'<p>{html.escape(line.strip())}</p>' for line in content.split('\n') if line.strip()]
         html_parts.append('\n'.join(lines))
         
         return '\n'.join(html_parts)
