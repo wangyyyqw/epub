@@ -1,6 +1,10 @@
 <script setup>
 import { ref, computed, watch, nextTick, inject } from 'vue'
 import FileDropZone from './FileDropZone.vue'
+import FontTargetSelector from './shared/FontTargetSelector.vue'
+import SplitTargetSelector from './shared/SplitTargetSelector.vue'
+import MergeFileList from './shared/MergeFileList.vue'
+import OutputLog from './shared/OutputLog.vue'
 
 const toast = inject('toast')
 
@@ -16,7 +20,6 @@ const fontPath = ref('')
 const regexPattern = ref('')
 const loading = ref(false)
 const outputLog = ref('')
-const logContainer = ref(null)
 const operationCompleted = ref(false)
 
 // Font encrypt target selection state
@@ -29,33 +32,22 @@ const showFontTargetSelector = ref(false)
 const opfContent = ref('')
 
 // Merge file list state
-const mergeFiles = ref([])        // 合并文件列表（支持拖拽排序）
-const dragIndex = ref(-1)         // 当前拖拽项索引
+const mergeFiles = ref([])
 
 // Split state
-const splitTargets = ref([])           // 章节结构列表
-const selectedSplitPoints = ref([])    // 用户选中的拆分点索引
-const showSplitTargetSelector = ref(false)  // 是否显示拆分点选择面板
+const splitTargets = ref([])
+const selectedSplitPoints = ref([])
+const showSplitTargetSelector = ref(false)
 
 watch(() => props.activeTool, (newVal) => {
   if (newVal) {
     selectedOperation.value = newVal
-    inputPaths.value = []
-    outputPath.value = ''
-    fontPath.value = ''
-    regexPattern.value = ''
-    outputLog.value = ''
-    operationCompleted.value = false
+    inputPaths.value = []; outputPath.value = ''; fontPath.value = ''; regexPattern.value = ''
+    outputLog.value = ''; operationCompleted.value = false
     fontTargets.value = { font_families: [], xhtml_files: [] }
-    selectedFontFamilies.value = []
-    selectedXhtmlFiles.value = []
-    showFontTargetSelector.value = false
-    opfContent.value = ''
-    mergeFiles.value = []
-    dragIndex.value = -1
-    splitTargets.value = []
-    selectedSplitPoints.value = []
-    showSplitTargetSelector.value = false
+    selectedFontFamilies.value = []; selectedXhtmlFiles.value = []; showFontTargetSelector.value = false
+    opfContent.value = ''; mergeFiles.value = []
+    splitTargets.value = []; selectedSplitPoints.value = []; showSplitTargetSelector.value = false
   }
 }, { immediate: true })
 
@@ -87,11 +79,7 @@ const needsMode = computed(() => operationsMap[selectedOperation.value]?.hasMode
 const selectedMode = ref('')
 
 watch(selectedOperation, (val) => {
-  if (operationsMap[val]?.hasMode) {
-    selectedMode.value = operationsMap[val].modes[0].value
-  } else {
-    selectedMode.value = ''
-  }
+  selectedMode.value = operationsMap[val]?.hasMode ? operationsMap[val].modes[0].value : ''
 })
 
 // --- Shared Style Classes ---
@@ -100,478 +88,235 @@ const inputReadonlyClass = inputBaseClass + ' cursor-pointer'
 const buttonBaseClass = 'px-4 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1'
 const buttonSecondaryClass = buttonBaseClass + ' bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 focus:ring-gray-400'
 
+const fileName = (p) => p.split(/[\\/]/).pop()
+
 // --- Methods ---
 const handleEpubDrop = (pathsOrPath) => {
   if (!pathsOrPath) return
   const paths = Array.isArray(pathsOrPath) ? pathsOrPath : [pathsOrPath]
   const epubPaths = paths.filter(p => typeof p === 'string' && p.toLowerCase().endsWith('.epub'))
-  if (epubPaths.length === 0) {
-    toast?.error?.('请选择 EPUB 文件')
-    return
-  }
-  // Deduplicate with existing
+  if (epubPaths.length === 0) { toast?.error?.('请选择 EPUB 文件'); return }
   const existing = new Set(inputPaths.value)
   const newPaths = epubPaths.filter(p => !existing.has(p))
-  if (newPaths.length > 0) {
-    inputPaths.value = [...inputPaths.value, ...newPaths]
-    toast?.success?.(`已添加 ${newPaths.length} 个文件`)
-  }
+  if (newPaths.length > 0) { inputPaths.value = [...inputPaths.value, ...newPaths]; toast?.success?.(`已添加 ${newPaths.length} 个文件`) }
 }
 
 const selectFile = async () => {
-  try {
-    const paths = await window.go.main.App.SelectFiles()
-    if (paths && paths.length > 0) {
-      handleEpubDrop(paths)
-    }
-  } catch (err) { console.error(err) }
+  try { const paths = await window.go.main.App.SelectFiles(); if (paths && paths.length > 0) handleEpubDrop(paths) }
+  catch (err) { console.error(err) }
 }
-
-const removeFile = (index) => {
-  inputPaths.value.splice(index, 1)
-}
-
-const clearFiles = () => {
-  inputPaths.value = []
-}
+const removeFile = (index) => { inputPaths.value.splice(index, 1) }
+const clearFiles = () => { inputPaths.value = [] }
 
 const selectOutputPath = async () => {
-  try {
-    const path = await window.go.main.App.SelectDirectory()
-    if (path) {
-      outputPath.value = path
-      toast?.success?.('已设置输出目录')
-    }
-  } catch (err) { console.error(err) }
+  try { const path = await window.go.main.App.SelectDirectory(); if (path) { outputPath.value = path; toast?.success?.('已设置输出目录') } }
+  catch (err) { console.error(err) }
 }
-
 const selectFontFile = async () => {
-  try {
-    const path = await window.go.main.App.SelectFile()
-    if (path) {
-      fontPath.value = path
-      toast?.success?.('已选择字体文件')
-    }
-  } catch (err) { console.error(err) }
+  try { const path = await window.go.main.App.SelectFile(); if (path) { fontPath.value = path; toast?.success?.('已选择字体文件') } }
+  catch (err) { console.error(err) }
 }
 
 const scrollLogToBottom = async () => {
   await nextTick()
-  if (logContainer.value) logContainer.value.scrollTop = logContainer.value.scrollHeight
 }
 
-const fileName = (p) => p.split(/[\\/]/).pop()
-
 const scanFontTargets = async () => {
-  if (inputPaths.value.length === 0) {
-    toast?.warning?.('请先选择输入文件')
-    return
-  }
+  if (inputPaths.value.length === 0) { toast?.warning?.('请先选择输入文件'); return }
   loading.value = true
   const filePath = inputPaths.value[0]
-  const name = fileName(filePath)
-  outputLog.value = `▶ 扫描字体加密目标: ${name}\n${'─'.repeat(40)}\n`
-  scrollLogToBottom()
-
+  outputLog.value = `▶ 扫描字体加密目标: ${fileName(filePath)}\n${'─'.repeat(40)}\n`
   const args = ['--plugin', 'epub_tool', '--operation', 'list_font_targets', '--input-path', filePath]
-
   try {
     const result = await window.go.main.App.RunBackend(args)
-    if (result.stderr) {
-      outputLog.value += result.stderr + '\n'
-      scrollLogToBottom()
-    }
+    if (result.stderr) outputLog.value += result.stderr + '\n'
     const targets = JSON.parse(result.stdout)
     fontTargets.value = targets
-
     if (targets.font_families.length === 0 && targets.xhtml_files.length === 0) {
       toast?.warning?.('该 EPUB 无可加密的字体族或 XHTML 文件')
-      outputLog.value += '⚠ 未找到可加密的字体族或 XHTML 文件\n'
-      loading.value = false
-      scrollLogToBottom()
-      return
+      outputLog.value += '⚠ 未找到可加密的字体族或 XHTML 文件\n'; loading.value = false; return
     }
-    if (targets.font_families.length === 0) {
-      toast?.warning?.('该 EPUB 无可加密的字体族')
-      outputLog.value += '⚠ 未找到可加密的字体族\n'
-    }
-    if (targets.xhtml_files.length === 0) {
-      toast?.warning?.('该 EPUB 无可加密的 XHTML 文件')
-      outputLog.value += '⚠ 未找到可加密的 XHTML 文件\n'
-    }
-
-    // Default: select all
+    if (targets.font_families.length === 0) { toast?.warning?.('该 EPUB 无可加密的字体族'); outputLog.value += '⚠ 未找到可加密的字体族\n' }
+    if (targets.xhtml_files.length === 0) { toast?.warning?.('该 EPUB 无可加密的 XHTML 文件'); outputLog.value += '⚠ 未找到可加密的 XHTML 文件\n' }
     selectedFontFamilies.value = [...targets.font_families]
     selectedXhtmlFiles.value = [...targets.xhtml_files]
     showFontTargetSelector.value = true
-
     outputLog.value += `✅ 扫描完成: 发现 ${targets.font_families.length} 个字体族, ${targets.xhtml_files.length} 个 XHTML 文件\n`
-    toast?.success?.(`扫描完成，请选择要加密的目标`)
-  } catch (err) {
-    outputLog.value += `❌ 扫描失败: ${String(err)}\n`
-    toast?.error?.('扫描字体加密目标失败，请重新选择文件')
-  }
+    toast?.success?.('扫描完成，请选择要加密的目标')
+  } catch (err) { outputLog.value += `❌ 扫描失败: ${String(err)}\n`; toast?.error?.('扫描字体加密目标失败，请重新选择文件') }
   loading.value = false
-  scrollLogToBottom()
 }
 
-const toggleAllFontFamilies = () => {
-  selectedFontFamilies.value = [...fontTargets.value.font_families]
+const toggleAllFontFamilies = () => { selectedFontFamilies.value = [...fontTargets.value.font_families] }
+const invertFontFamilies = () => { const c = new Set(selectedFontFamilies.value); selectedFontFamilies.value = fontTargets.value.font_families.filter(f => !c.has(f)) }
+const toggleAllXhtmlFiles = () => { selectedXhtmlFiles.value = [...fontTargets.value.xhtml_files] }
+const invertXhtmlFiles = () => { const c = new Set(selectedXhtmlFiles.value); selectedXhtmlFiles.value = fontTargets.value.xhtml_files.filter(f => !c.has(f)) }
+const cancelFontTargetSelection = () => { showFontTargetSelector.value = false }
+
+const scanSplitTargets = async () => {
+  if (inputPaths.value.length === 0) { toast?.warning?.('请先选择输入文件'); return }
+  loading.value = true
+  const filePath = inputPaths.value[0]
+  outputLog.value = `▶ 扫描拆分目标: ${fileName(filePath)}\n${'─'.repeat(40)}\n`
+  const args = ['--plugin', 'epub_tool', '--operation', 'list_split_targets', '--input-path', filePath]
+  try {
+    const result = await window.go.main.App.RunBackend(args)
+    if (result.stderr) outputLog.value += result.stderr + '\n'
+    const targets = JSON.parse(result.stdout)
+    splitTargets.value = targets
+    if (targets.length === 0) { toast?.warning?.('该 EPUB 无可用的章节结构'); outputLog.value += '⚠ 未找到可用的章节结构\n'; loading.value = false; return }
+    selectedSplitPoints.value = []; showSplitTargetSelector.value = true
+    outputLog.value += `✅ 扫描完成: 发现 ${targets.length} 个章节条目\n`
+    toast?.success?.('扫描完成，请选择拆分点')
+  } catch (err) { outputLog.value += `❌ 扫描失败: ${String(err)}\n`; toast?.error?.('扫描拆分目标失败，请重新选择文件') }
+  loading.value = false
 }
 
-const invertFontFamilies = () => {
-  const current = new Set(selectedFontFamilies.value)
-  selectedFontFamilies.value = fontTargets.value.font_families.filter(f => !current.has(f))
-}
+const toggleAllSplitPoints = () => { selectedSplitPoints.value = splitTargets.value.map((_, i) => i) }
+const invertSplitPoints = () => { const c = new Set(selectedSplitPoints.value); selectedSplitPoints.value = splitTargets.value.map((_, i) => i).filter(i => !c.has(i)) }
+const cancelSplitTargetSelection = () => { showSplitTargetSelector.value = false }
 
-const toggleAllXhtmlFiles = () => {
-  selectedXhtmlFiles.value = [...fontTargets.value.xhtml_files]
+const handleMergeFileDrop = (pathsOrPath) => {
+  if (!pathsOrPath) return
+  const paths = Array.isArray(pathsOrPath) ? pathsOrPath : [pathsOrPath]
+  const epubPaths = paths.filter(p => typeof p === 'string' && p.toLowerCase().endsWith('.epub'))
+  if (epubPaths.length === 0) { toast?.error?.('请选择 EPUB 文件'); return }
+  const existing = new Set(mergeFiles.value)
+  const newPaths = epubPaths.filter(p => !existing.has(p))
+  if (newPaths.length > 0) { mergeFiles.value = [...mergeFiles.value, ...newPaths]; toast?.success?.(`已添加 ${newPaths.length} 个文件`) }
 }
-
-const invertXhtmlFiles = () => {
-  const current = new Set(selectedXhtmlFiles.value)
-  selectedXhtmlFiles.value = fontTargets.value.xhtml_files.filter(f => !current.has(f))
+const selectMergeFiles = async () => {
+  try { const paths = await window.go.main.App.SelectFiles(); if (paths && paths.length > 0) handleMergeFileDrop(paths) }
+  catch (err) { console.error(err) }
 }
-
-const cancelFontTargetSelection = () => {
-  showFontTargetSelector.value = false
+const removeMergeFile = (index) => { mergeFiles.value.splice(index, 1) }
+const clearMergeFiles = () => { mergeFiles.value = [] }
+const reorderMergeFiles = (fromIdx, toIdx) => {
+  const list = [...mergeFiles.value]
+  const dragged = list.splice(fromIdx, 1)[0]
+  list.splice(toIdx, 0, dragged)
+  mergeFiles.value = list
 }
 
 const runTool = async () => {
-  if (inputPaths.value.length === 0 || !selectedOperation.value) {
-    toast?.warning?.('请先选择输入文件')
-    return
-  }
+  if (inputPaths.value.length === 0 || !selectedOperation.value) { toast?.warning?.('请先选择输入文件'); return }
+  if (selectedOperation.value === 'encrypt_font' && !showFontTargetSelector.value) { await scanFontTargets(); return }
+  if (selectedOperation.value === 'split_epub' && !showSplitTargetSelector.value) { await scanSplitTargets(); return }
 
-  // Intercept encrypt_font: scan first if target selector not shown yet
-  if (selectedOperation.value === 'encrypt_font' && !showFontTargetSelector.value) {
-    await scanFontTargets()
-    return
-  }
-
-  // Intercept split_epub: scan first if target selector not shown yet
-  if (selectedOperation.value === 'split_epub' && !showSplitTargetSelector.value) {
-    await scanSplitTargets()
-    return
-  }
-
-  // Special handling for view_opf: only process first file, display OPF content
+  // view_opf
   if (selectedOperation.value === 'view_opf') {
-    loading.value = true
-    opfContent.value = ''
-    const filePath = inputPaths.value[0]
-    const name = fileName(filePath)
+    loading.value = true; opfContent.value = ''
+    const filePath = inputPaths.value[0]; const name = fileName(filePath)
     outputLog.value = `▶ OPF 查看: ${name}\n${'─'.repeat(40)}\n`
-    scrollLogToBottom()
-
     const args = ['--plugin', 'epub_tool', '--operation', 'view_opf', '--input-path', filePath]
-
     try {
       const result = await window.go.main.App.RunBackend(args)
-      if (result.stderr) {
-        outputLog.value += result.stderr + '\n'
-      }
+      if (result.stderr) outputLog.value += result.stderr + '\n'
       if (result.stdout) {
-        // Extract OPF content between markers
         const opfMatch = result.stdout.match(/=== OPF Content ===([\s\S]*?)(?==== File List ===|$)/)
-        if (opfMatch) {
-          opfContent.value = opfMatch[1].trim()
-        }
+        if (opfMatch) opfContent.value = opfMatch[1].trim()
         outputLog.value += result.stdout + '\n'
       }
-      outputLog.value += `\n✅ OPF 查看完成\n`
-      toast?.success?.('OPF 查看完成')
-    } catch (err) {
-      outputLog.value += `❌ 失败: ${String(err)}\n`
-      toast?.error?.('OPF 查看失败')
-    }
-    loading.value = false
-    operationCompleted.value = true
-    scrollLogToBottom()
-    return
+      outputLog.value += `\n✅ OPF 查看完成\n`; toast?.success?.('OPF 查看完成')
+    } catch (err) { outputLog.value += `❌ 失败: ${String(err)}\n`; toast?.error?.('OPF 查看失败') }
+    loading.value = false; operationCompleted.value = true; return
   }
 
-  // Special handling for merge_epub: use mergeFiles and --input-paths
+  // merge_epub
   if (selectedOperation.value === 'merge_epub') {
-    if (mergeFiles.value.length < 2) {
-      toast?.warning?.('请至少添加 2 个 EPUB 文件')
-      return
-    }
+    if (mergeFiles.value.length < 2) { toast?.warning?.('请至少添加 2 个 EPUB 文件'); return }
     loading.value = true
     outputLog.value = `▶ 合并 EPUB（共 ${mergeFiles.value.length} 个文件）\n${'─'.repeat(40)}\n`
-    mergeFiles.value.forEach((p, i) => {
-      outputLog.value += `  ${i + 1}. ${fileName(p)}\n`
-    })
+    mergeFiles.value.forEach((p, i) => { outputLog.value += `  ${i + 1}. ${fileName(p)}\n` })
     outputLog.value += `${'─'.repeat(40)}\n`
-    scrollLogToBottom()
-
     const args = ['--plugin', 'epub_tool', '--operation', 'merge', '--input-paths', ...mergeFiles.value]
     if (outputPath.value) args.push('--output-path', outputPath.value)
-
     try {
       const result = await window.go.main.App.RunBackend(args)
       if (result.stderr) outputLog.value += result.stderr + '\n'
       if (result.stdout) outputLog.value += result.stdout + '\n'
-      outputLog.value += `\n✅ 合并完成\n`
-      toast?.success?.('EPUB 合并完成')
-    } catch (err) {
-      outputLog.value += `❌ 合并失败: ${String(err)}\n`
-      toast?.error?.('EPUB 合并失败')
-    }
-    loading.value = false
-    operationCompleted.value = true
-    scrollLogToBottom()
-    return
+      outputLog.value += `\n✅ 合并完成\n`; toast?.success?.('EPUB 合并完成')
+    } catch (err) { outputLog.value += `❌ 合并失败: ${String(err)}\n`; toast?.error?.('EPUB 合并失败') }
+    loading.value = false; operationCompleted.value = true; return
   }
 
-  // Special handling for split_epub: use selectedSplitPoints and --split-points
+  // split_epub
   if (selectedOperation.value === 'split_epub' && showSplitTargetSelector.value) {
-    if (selectedSplitPoints.value.length === 0) {
-      toast?.warning?.('请至少选择一个拆分点')
-      return
-    }
+    if (selectedSplitPoints.value.length === 0) { toast?.warning?.('请至少选择一个拆分点'); return }
     loading.value = true
-    const filePath = inputPaths.value[0]
-    const name = fileName(filePath)
+    const filePath = inputPaths.value[0]; const name = fileName(filePath)
     const sortedPoints = [...selectedSplitPoints.value].sort((a, b) => a - b)
     const splitPointsStr = sortedPoints.join(',')
-    outputLog.value = `▶ 拆分 EPUB: ${name}\n${'─'.repeat(40)}\n`
-    outputLog.value += `  拆分点: ${splitPointsStr}\n`
-    outputLog.value += `${'─'.repeat(40)}\n`
-    scrollLogToBottom()
-
+    outputLog.value = `▶ 拆分 EPUB: ${name}\n${'─'.repeat(40)}\n  拆分点: ${splitPointsStr}\n${'─'.repeat(40)}\n`
     const args = ['--plugin', 'epub_tool', '--operation', 'split', '--input-path', filePath, '--split-points', splitPointsStr]
     if (outputPath.value) args.push('--output-path', outputPath.value)
-
     try {
       const result = await window.go.main.App.RunBackend(args)
       if (result.stderr) outputLog.value += result.stderr + '\n'
       if (result.stdout) outputLog.value += result.stdout + '\n'
-      outputLog.value += `\n✅ 拆分完成\n`
-      toast?.success?.('EPUB 拆分完成')
-    } catch (err) {
-      outputLog.value += `❌ 拆分失败: ${String(err)}\n`
-      toast?.error?.('EPUB 拆分失败')
-    }
-    loading.value = false
-    operationCompleted.value = true
-    showSplitTargetSelector.value = false
-    splitTargets.value = []
-    selectedSplitPoints.value = []
-    scrollLogToBottom()
-    return
+      outputLog.value += `\n✅ 拆分完成\n`; toast?.success?.('EPUB 拆分完成')
+    } catch (err) { outputLog.value += `❌ 拆分失败: ${String(err)}\n`; toast?.error?.('EPUB 拆分失败') }
+    loading.value = false; operationCompleted.value = true
+    showSplitTargetSelector.value = false; splitTargets.value = []; selectedSplitPoints.value = []; return
   }
 
+  // Batch execution
   loading.value = true
-  const total = inputPaths.value.length
-  let successCount = 0
-  let failCount = 0
+  const total = inputPaths.value.length; let successCount = 0; let failCount = 0
   outputLog.value = `▶ 批量执行: ${currentToolInfo.value.label}（共 ${total} 个文件）\n${'─'.repeat(40)}\n`
   toast?.info?.(`开始批量执行 ${total} 个文件...`, 2000)
-
   for (let i = 0; i < total; i++) {
-    const filePath = inputPaths.value[i]
-    const name = fileName(filePath)
+    const filePath = inputPaths.value[i]; const name = fileName(filePath)
     outputLog.value += `\n[${i + 1}/${total}] ${name}\n`
-    scrollLogToBottom()
-
     const args = ['--plugin', 'epub_tool', '--operation', selectedOperation.value, '--input-path', filePath]
     if (fontPath.value && needsFontPath.value) args.push('--font-path', fontPath.value)
     if (outputPath.value) args.push('--output-path', outputPath.value)
     if (regexPattern.value && needsRegex.value) args.push('--regex-pattern', regexPattern.value)
-
-    // Add font encrypt target arguments when user has made selections
     if (selectedOperation.value === 'encrypt_font' && showFontTargetSelector.value) {
-      if (selectedFontFamilies.value.length > 0) {
-        args.push('--target-font-families', ...selectedFontFamilies.value)
-      }
-      if (selectedXhtmlFiles.value.length > 0) {
-        args.push('--target-xhtml-files', ...selectedXhtmlFiles.value)
-      }
+      if (selectedFontFamilies.value.length > 0) args.push('--target-font-families', ...selectedFontFamilies.value)
+      if (selectedXhtmlFiles.value.length > 0) args.push('--target-xhtml-files', ...selectedXhtmlFiles.value)
     }
-
     if (['convert_chinese', 'convert_image_format'].includes(selectedOperation.value)) {
-      const opIndex = args.indexOf('--operation')
-      if (opIndex > -1) args[opIndex + 1] = selectedMode.value
-    } else if (selectedOperation.value === 'convert_version') {
-      args.push('--target-version', selectedMode.value)
-    }
-
+      const opIndex = args.indexOf('--operation'); if (opIndex > -1) args[opIndex + 1] = selectedMode.value
+    } else if (selectedOperation.value === 'convert_version') { args.push('--target-version', selectedMode.value) }
     try {
       const result = await window.go.main.App.RunBackend(args)
       if (result.stderr) outputLog.value += result.stderr + '\n'
       if (result.stdout) outputLog.value += result.stdout + '\n'
-      outputLog.value += `  ✅ 完成\n`
-      successCount++
+      outputLog.value += `  ✅ 完成\n`; successCount++
     } catch (err) {
       const errStr = String(err)
       if (errStr.includes('ZHANGYUE_DRM') || errStr.includes('zhangyue_drm')) {
         outputLog.value += `  ⚠️ 该文件为掌阅(ZhangYue)DRM加密书籍，因版权保护原因不支持解密处理\n`
         toast?.warning?.('检测到掌阅DRM加密，不支持解密')
-      } else {
-        outputLog.value += `  ❌ 失败: ${errStr}\n`
-      }
+      } else { outputLog.value += `  ❌ 失败: ${errStr}\n` }
       failCount++
     }
-    scrollLogToBottom()
   }
-
-  outputLog.value += `\n${'─'.repeat(40)}\n`
-  outputLog.value += `📊 执行结果: 成功 ${successCount}，失败 ${failCount}，共 ${total} 个文件\n`
-  loading.value = false
-  operationCompleted.value = true
-  // Reset font target selector after encrypt_font execution
+  outputLog.value += `\n${'─'.repeat(40)}\n📊 执行结果: 成功 ${successCount}，失败 ${failCount}，共 ${total} 个文件\n`
+  loading.value = false; operationCompleted.value = true
   if (selectedOperation.value === 'encrypt_font') {
-    showFontTargetSelector.value = false
-    fontTargets.value = { font_families: [], xhtml_files: [] }
-    selectedFontFamilies.value = []
-    selectedXhtmlFiles.value = []
+    showFontTargetSelector.value = false; fontTargets.value = { font_families: [], xhtml_files: [] }
+    selectedFontFamilies.value = []; selectedXhtmlFiles.value = []
   }
-  scrollLogToBottom()
-  if (failCount === 0) {
-    toast?.success?.(`全部完成（${successCount} 个文件）`)
-  } else {
-    toast?.warning?.(`完成: ${successCount} 成功, ${failCount} 失败`)
-  }
+  if (failCount === 0) toast?.success?.(`全部完成（${successCount} 个文件）`)
+  else toast?.warning?.(`完成: ${successCount} 成功, ${failCount} 失败`)
 }
 
 const openLogFile = async () => {
-  try {
-    await window.go.main.App.OpenLogFile()
-  } catch (err) {
-    toast?.error?.('打开日志文件失败: ' + String(err))
-  }
+  try { await window.go.main.App.OpenLogFile() } catch (err) { toast?.error?.('打开日志文件失败: ' + String(err)) }
 }
-
 const copyLog = async () => {
-  try {
-    await navigator.clipboard.writeText(outputLog.value)
-    toast?.success?.('已复制日志到剪贴板')
-  } catch { toast?.error?.('复制失败') }
+  try { await navigator.clipboard.writeText(outputLog.value); toast?.success?.('已复制日志到剪贴板') } catch { toast?.error?.('复制失败') }
 }
-
 const copyOpfContent = async () => {
-  try {
-    await navigator.clipboard.writeText(opfContent.value)
-    toast?.success?.('已复制 OPF 内容到剪贴板')
-  } catch { toast?.error?.('复制失败') }
+  try { await navigator.clipboard.writeText(opfContent.value); toast?.success?.('已复制 OPF 内容到剪贴板') } catch { toast?.error?.('复制失败') }
 }
-
 const clearLog = () => { outputLog.value = '' }
-
-// --- Merge file list methods ---
-const handleMergeFileDrop = (pathsOrPath) => {
-  if (!pathsOrPath) return
-  const paths = Array.isArray(pathsOrPath) ? pathsOrPath : [pathsOrPath]
-  const epubPaths = paths.filter(p => typeof p === 'string' && p.toLowerCase().endsWith('.epub'))
-  if (epubPaths.length === 0) {
-    toast?.error?.('请选择 EPUB 文件')
-    return
-  }
-  const existing = new Set(mergeFiles.value)
-  const newPaths = epubPaths.filter(p => !existing.has(p))
-  if (newPaths.length > 0) {
-    mergeFiles.value = [...mergeFiles.value, ...newPaths]
-    toast?.success?.(`已添加 ${newPaths.length} 个文件`)
-  }
-}
-
-const selectMergeFiles = async () => {
-  try {
-    const paths = await window.go.main.App.SelectFiles()
-    if (paths && paths.length > 0) {
-      handleMergeFileDrop(paths)
-    }
-  } catch (err) { console.error(err) }
-}
-
-const removeMergeFile = (index) => {
-  mergeFiles.value.splice(index, 1)
-}
-
-const clearMergeFiles = () => {
-  mergeFiles.value = []
-}
-
-const onMergeDragStart = (index) => {
-  dragIndex.value = index
-}
-
-const onMergeDragOver = (event, index) => {
-  event.preventDefault()
-  if (dragIndex.value === -1 || dragIndex.value === index) return
-  const list = [...mergeFiles.value]
-  const dragged = list.splice(dragIndex.value, 1)[0]
-  list.splice(index, 0, dragged)
-  mergeFiles.value = list
-  dragIndex.value = index
-}
-
-const onMergeDragEnd = () => {
-  dragIndex.value = -1
-}
-
-// --- Split methods ---
-const scanSplitTargets = async () => {
-  if (inputPaths.value.length === 0) {
-    toast?.warning?.('请先选择输入文件')
-    return
-  }
-  loading.value = true
-  const filePath = inputPaths.value[0]
-  const name = fileName(filePath)
-  outputLog.value = `▶ 扫描拆分目标: ${name}\n${'─'.repeat(40)}\n`
-  scrollLogToBottom()
-
-  const args = ['--plugin', 'epub_tool', '--operation', 'list_split_targets', '--input-path', filePath]
-
-  try {
-    const result = await window.go.main.App.RunBackend(args)
-    if (result.stderr) {
-      outputLog.value += result.stderr + '\n'
-      scrollLogToBottom()
-    }
-    const targets = JSON.parse(result.stdout)
-    splitTargets.value = targets
-
-    if (targets.length === 0) {
-      toast?.warning?.('该 EPUB 无可用的章节结构')
-      outputLog.value += '⚠ 未找到可用的章节结构\n'
-      loading.value = false
-      scrollLogToBottom()
-      return
-    }
-
-    selectedSplitPoints.value = []
-    showSplitTargetSelector.value = true
-
-    outputLog.value += `✅ 扫描完成: 发现 ${targets.length} 个章节条目\n`
-    toast?.success?.('扫描完成，请选择拆分点')
-  } catch (err) {
-    outputLog.value += `❌ 扫描失败: ${String(err)}\n`
-    toast?.error?.('扫描拆分目标失败，请重新选择文件')
-  }
-  loading.value = false
-  scrollLogToBottom()
-}
-
-const toggleAllSplitPoints = () => {
-  selectedSplitPoints.value = splitTargets.value.map((_, i) => i)
-}
-
-const invertSplitPoints = () => {
-  const current = new Set(selectedSplitPoints.value)
-  selectedSplitPoints.value = splitTargets.value.map((_, i) => i).filter(i => !current.has(i))
-}
-
-const cancelSplitTargetSelection = () => {
-  showSplitTargetSelector.value = false
-}
 </script>
 
 <template>
   <div class="h-full flex flex-col space-y-6">
-    <!-- Header -->
     <header>
       <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ currentToolInfo.label }}</h1>
       <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ currentToolInfo.desc }}</p>
@@ -592,21 +337,13 @@ const cancelSplitTargetSelection = () => {
       <!-- File Selection -->
       <div class="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-100 dark:border-gray-700 space-y-4">
         <h2 class="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">文件设置</h2>
-
-        <!-- Input Files with Drag Drop -->
         <div>
           <label class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">
             输入文件 <span class="text-red-400">*</span>
             <span v-if="inputPaths.length > 0" class="ml-2 text-xs text-indigo-500 font-normal">已选 {{ inputPaths.length }} 个文件</span>
           </label>
           <div class="space-y-2">
-            <FileDropZone
-              accept=".epub,application/epub+zip"
-              :multiple="true"
-              @drop="handleEpubDrop"
-              @click="selectFile"
-              :disabled="false"
-            >
+            <FileDropZone accept=".epub,application/epub+zip" :multiple="true" @drop="handleEpubDrop" @click="selectFile" :disabled="false">
               <div class="flex flex-col items-center justify-center py-6 px-4 text-center">
                 <div class="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center mb-2">
                   <svg class="w-5 h-5 text-indigo-600 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
@@ -617,39 +354,24 @@ const cancelSplitTargetSelection = () => {
                 <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">或点击选择文件</p>
               </div>
             </FileDropZone>
-
-            <!-- File List -->
             <div v-if="inputPaths.length > 0" class="space-y-1">
-              <div v-for="(p, idx) in inputPaths" :key="p"
-                class="flex items-center justify-between px-3 py-2 bg-gray-50 dark:bg-gray-900/50 rounded-lg group"
-              >
+              <div v-for="(p, idx) in inputPaths" :key="p" class="flex items-center justify-between px-3 py-2 bg-gray-50 dark:bg-gray-900/50 rounded-lg group">
                 <div class="flex items-center min-w-0 flex-1 mr-2">
                   <span class="text-xs text-gray-400 mr-2 flex-shrink-0">{{ idx + 1 }}.</span>
                   <span class="text-xs text-gray-600 dark:text-gray-400 truncate" :title="p">{{ fileName(p) }}</span>
                 </div>
                 <button @click="removeFile(idx)" class="text-gray-400 hover:text-red-500 transition-colors flex-shrink-0 opacity-0 group-hover:opacity-100">
-                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
               </div>
               <button @click="clearFiles" class="text-xs text-gray-400 hover:text-red-500 transition-colors mt-1">清空全部文件</button>
             </div>
           </div>
         </div>
-
-        <!-- Output Path -->
         <div>
-          <label class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">
-            输出目录 <span class="text-gray-400 font-normal">（可选）</span>
-          </label>
+          <label class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">输出目录 <span class="text-gray-400 font-normal">（可选）</span></label>
           <div class="flex space-x-2">
-            <input v-model="outputPath" type="text"
-              :class="inputReadonlyClass"
-              placeholder="默认为源文件同目录"
-              readonly
-              @click="selectOutputPath"
-            >
+            <input v-model="outputPath" type="text" :class="inputReadonlyClass" placeholder="默认为源文件同目录" readonly @click="selectOutputPath">
             <button @click="selectOutputPath" :class="buttonSecondaryClass">浏览</button>
           </div>
         </div>
@@ -659,16 +381,9 @@ const cancelSplitTargetSelection = () => {
       <div v-if="needsFontPath" class="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-100 dark:border-gray-700 space-y-4 animate-slide-in">
         <h2 class="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">加密选项</h2>
         <div>
-          <label class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">
-            字体文件 <span class="text-gray-400 font-normal">（可选）</span>
-          </label>
+          <label class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">字体文件 <span class="text-gray-400 font-normal">（可选）</span></label>
           <div class="flex space-x-2">
-            <input v-model="fontPath" type="text"
-              :class="inputReadonlyClass"
-              placeholder="选择字体文件用于混淆加密"
-              readonly
-              @click="selectFontFile"
-            >
+            <input v-model="fontPath" type="text" :class="inputReadonlyClass" placeholder="选择字体文件用于混淆加密" readonly @click="selectFontFile">
             <button @click="selectFontFile" :class="buttonSecondaryClass">浏览</button>
           </div>
         </div>
@@ -679,12 +394,10 @@ const cancelSplitTargetSelection = () => {
         <h2 class="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">转换模式</h2>
         <div class="flex space-x-3">
           <label v-for="mode in currentToolInfo.modes" :key="mode.value"
-            :class="[
-              'flex-1 flex items-center justify-center px-4 py-2.5 rounded-lg border-2 cursor-pointer transition-all duration-150 text-sm font-medium',
+            :class="['flex-1 flex items-center justify-center px-4 py-2.5 rounded-lg border-2 cursor-pointer transition-all duration-150 text-sm font-medium',
               selectedMode === mode.value
                 ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300'
-                : 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-500'
-            ]"
+                : 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-500']"
           >
             <input type="radio" v-model="selectedMode" :value="mode.value" class="sr-only">
             <span>{{ mode.label }}</span>
@@ -697,214 +410,56 @@ const cancelSplitTargetSelection = () => {
         <h2 class="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">正则选项</h2>
         <div>
           <label class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">正则表达式</label>
-          <input v-model="regexPattern" type="text"
-            :class="inputBaseClass + ' font-mono'"
-            :placeholder="selectedOperation === 'footnote_conv' ? '默认: \\[(\\d+)\\] 或 #.+' : '默认: \\[(.*?)\\]'"
-          >
+          <input v-model="regexPattern" type="text" :class="inputBaseClass + ' font-mono'"
+            :placeholder="selectedOperation === 'footnote_conv' ? '默认: \\[(\\d+)\\] 或 #.+' : '默认: \\[(.*?)\\]'">
           <p class="text-xs text-gray-400 mt-2">留空将使用默认正则表达式。</p>
         </div>
       </div>
 
       <!-- Font Encrypt Target Selector -->
-      <div v-if="showFontTargetSelector" class="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-100 dark:border-gray-700 space-y-5 animate-slide-in">
-        <h2 class="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">字体加密目标选择</h2>
-
-        <!-- Font Families Section -->
-        <div class="space-y-3">
-          <div class="flex items-center justify-between">
-            <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
-              字体族
-              <span class="ml-1 text-xs text-gray-400 font-normal">({{ selectedFontFamilies.length }}/{{ fontTargets.font_families.length }})</span>
-            </label>
-            <div class="flex space-x-2">
-              <button @click="toggleAllFontFamilies" class="text-xs px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">全选</button>
-              <button @click="invertFontFamilies" class="text-xs px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">反选</button>
-            </div>
-          </div>
-          <div v-if="fontTargets.font_families.length === 0" class="text-xs text-gray-400 dark:text-gray-500 italic py-2">无可用字体族</div>
-          <div v-else class="max-h-40 overflow-y-auto space-y-1 rounded-lg border border-gray-100 dark:border-gray-700 p-2 bg-gray-50 dark:bg-gray-900/50">
-            <label v-for="family in fontTargets.font_families" :key="family"
-              class="flex items-center px-2 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer transition-colors"
-            >
-              <input type="checkbox" :value="family" v-model="selectedFontFamilies"
-                class="w-3.5 h-3.5 rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500 dark:bg-gray-800"
-              >
-              <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">{{ family }}</span>
-            </label>
-          </div>
-        </div>
-
-        <!-- XHTML Files Section -->
-        <div class="space-y-3">
-          <div class="flex items-center justify-between">
-            <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
-              XHTML 文件
-              <span class="ml-1 text-xs text-gray-400 font-normal">({{ selectedXhtmlFiles.length }}/{{ fontTargets.xhtml_files.length }})</span>
-            </label>
-            <div class="flex space-x-2">
-              <button @click="toggleAllXhtmlFiles" class="text-xs px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">全选</button>
-              <button @click="invertXhtmlFiles" class="text-xs px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">反选</button>
-            </div>
-          </div>
-          <div v-if="fontTargets.xhtml_files.length === 0" class="text-xs text-gray-400 dark:text-gray-500 italic py-2">无可用 XHTML 文件</div>
-          <div v-else class="max-h-48 overflow-y-auto space-y-1 rounded-lg border border-gray-100 dark:border-gray-700 p-2 bg-gray-50 dark:bg-gray-900/50">
-            <label v-for="file in fontTargets.xhtml_files" :key="file"
-              class="flex items-center px-2 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer transition-colors"
-            >
-              <input type="checkbox" :value="file" v-model="selectedXhtmlFiles"
-                class="w-3.5 h-3.5 rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500 dark:bg-gray-800"
-              >
-              <span class="ml-2 text-xs text-gray-600 dark:text-gray-400 font-mono truncate" :title="file">{{ file }}</span>
-            </label>
-          </div>
-        </div>
-
-        <!-- Confirm / Cancel Buttons -->
-        <div class="flex items-center justify-end space-x-3 pt-2 border-t border-gray-100 dark:border-gray-700">
-          <button @click="cancelFontTargetSelection"
-            class="px-4 py-2 text-sm font-medium rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-          >取消</button>
-          <button @click="runTool"
-            :disabled="selectedFontFamilies.length === 0 && selectedXhtmlFiles.length === 0"
-            :class="[
-              'px-4 py-2 text-sm font-medium rounded-lg shadow-sm text-white transition-all duration-200',
-              selectedFontFamilies.length === 0 && selectedXhtmlFiles.length === 0
-                ? 'bg-gray-300 dark:bg-gray-700 cursor-not-allowed'
-                : 'bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-600 dark:hover:bg-indigo-500'
-            ]"
-          >确认执行</button>
-        </div>
-      </div>
+      <FontTargetSelector v-if="showFontTargetSelector"
+        :fontFamilies="fontTargets.font_families"
+        :xhtmlFiles="fontTargets.xhtml_files"
+        v-model:selectedFontFamilies="selectedFontFamilies"
+        v-model:selectedXhtmlFiles="selectedXhtmlFiles"
+        @toggleAllFonts="toggleAllFontFamilies"
+        @invertFonts="invertFontFamilies"
+        @toggleAllXhtml="toggleAllXhtmlFiles"
+        @invertXhtml="invertXhtmlFiles"
+        @cancel="cancelFontTargetSelection"
+        @confirm="runTool"
+      />
 
       <!-- Merge EPUB File List -->
-      <div v-if="selectedOperation === 'merge_epub'" class="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-100 dark:border-gray-700 space-y-4 animate-slide-in">
-        <h2 class="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">合并文件列表</h2>
-
-        <FileDropZone
-          accept=".epub,application/epub+zip"
-          :multiple="true"
-          @drop="handleMergeFileDrop"
-          @click="selectMergeFiles"
-          :disabled="false"
-        >
-          <div class="flex flex-col items-center justify-center py-4 px-4 text-center">
-            <div class="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center mb-2">
-              <svg class="w-5 h-5 text-indigo-600 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-              </svg>
-            </div>
-            <p class="text-sm font-medium text-gray-700 dark:text-gray-300">拖拽 EPUB 文件到此处添加到合并列表</p>
-            <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">或点击选择文件，支持拖拽排序调整顺序</p>
-          </div>
-        </FileDropZone>
-
-        <!-- Merge File List with Drag Reorder -->
-        <div v-if="mergeFiles.length > 0" class="space-y-1">
-          <div v-for="(p, idx) in mergeFiles" :key="p + idx"
-            draggable="true"
-            @dragstart="onMergeDragStart(idx)"
-            @dragover="onMergeDragOver($event, idx)"
-            @dragend="onMergeDragEnd"
-            :class="[
-              'flex items-center justify-between px-3 py-2 rounded-lg group cursor-grab active:cursor-grabbing transition-all',
-              dragIndex === idx
-                ? 'bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-700'
-                : 'bg-gray-50 dark:bg-gray-900/50'
-            ]"
-          >
-            <div class="flex items-center min-w-0 flex-1 mr-2">
-              <span class="text-xs font-medium text-indigo-500 dark:text-indigo-400 mr-2 flex-shrink-0 w-5 text-center">{{ idx + 1 }}</span>
-              <svg class="w-3.5 h-3.5 text-gray-300 dark:text-gray-600 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M4 8h16M4 16h16" />
-              </svg>
-              <span class="text-xs text-gray-600 dark:text-gray-400 truncate" :title="p">{{ fileName(p) }}</span>
-            </div>
-            <button @click="removeMergeFile(idx)" class="text-gray-400 hover:text-red-500 transition-colors flex-shrink-0 opacity-0 group-hover:opacity-100">
-              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-          <button @click="clearMergeFiles" class="text-xs text-gray-400 hover:text-red-500 transition-colors mt-1">清空全部文件</button>
-        </div>
-
-        <!-- Merge hint when < 2 files -->
-        <div v-if="mergeFiles.length < 2" class="flex items-center space-x-2 text-xs text-amber-600 dark:text-amber-400">
-          <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-          </svg>
-          <span>请至少添加 2 个 EPUB 文件才能执行合并</span>
-        </div>
-      </div>
+      <MergeFileList v-if="selectedOperation === 'merge_epub'"
+        :files="mergeFiles"
+        @drop="handleMergeFileDrop"
+        @select="selectMergeFiles"
+        @remove="removeMergeFile"
+        @clear="clearMergeFiles"
+        @reorder="reorderMergeFiles"
+      />
 
       <!-- Split EPUB Target Selector -->
-      <div v-if="selectedOperation === 'split_epub' && showSplitTargetSelector" class="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-100 dark:border-gray-700 space-y-4 animate-slide-in">
-        <h2 class="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">拆分点选择</h2>
-
-        <div class="space-y-3">
-          <div class="flex items-center justify-between">
-            <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
-              章节结构
-              <span class="ml-1 text-xs text-gray-400 font-normal">(已选 {{ selectedSplitPoints.length }}/{{ splitTargets.length }})</span>
-            </label>
-            <div class="flex space-x-2">
-              <button @click="toggleAllSplitPoints" class="text-xs px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">全选</button>
-              <button @click="invertSplitPoints" class="text-xs px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">反选</button>
-            </div>
-          </div>
-          <div class="max-h-64 overflow-y-auto space-y-1 rounded-lg border border-gray-100 dark:border-gray-700 p-2 bg-gray-50 dark:bg-gray-900/50">
-            <label v-for="(target, idx) in splitTargets" :key="idx"
-              class="flex items-center px-2 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer transition-colors"
-              :style="{ paddingLeft: ((target.level - 1) * 1.5 + 0.5) + 'rem' }"
-            >
-              <input type="checkbox" :value="idx" v-model="selectedSplitPoints"
-                class="w-3.5 h-3.5 rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500 dark:bg-gray-800"
-              >
-              <span class="ml-2 text-sm text-gray-700 dark:text-gray-300 truncate" :title="target.href">{{ target.title }}</span>
-            </label>
-          </div>
-        </div>
-
-        <!-- Hint when no split points selected -->
-        <div v-if="selectedSplitPoints.length === 0" class="flex items-center space-x-2 text-xs text-amber-600 dark:text-amber-400">
-          <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-          </svg>
-          <span>请至少选择一个拆分点才能执行拆分</span>
-        </div>
-
-        <!-- Confirm / Cancel Buttons -->
-        <div class="flex items-center justify-end space-x-3 pt-2 border-t border-gray-100 dark:border-gray-700">
-          <button @click="cancelSplitTargetSelection"
-            class="px-4 py-2 text-sm font-medium rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-          >取消</button>
-          <button @click="runTool"
-            :disabled="selectedSplitPoints.length === 0"
-            :class="[
-              'px-4 py-2 text-sm font-medium rounded-lg shadow-sm text-white transition-all duration-200',
-              selectedSplitPoints.length === 0
-                ? 'bg-gray-300 dark:bg-gray-700 cursor-not-allowed'
-                : 'bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-600 dark:hover:bg-indigo-500'
-            ]"
-          >确认拆分</button>
-        </div>
-      </div>
+      <SplitTargetSelector v-if="selectedOperation === 'split_epub' && showSplitTargetSelector"
+        :targets="splitTargets"
+        v-model:selectedPoints="selectedSplitPoints"
+        @toggleAll="toggleAllSplitPoints"
+        @invert="invertSplitPoints"
+        @cancel="cancelSplitTargetSelection"
+        @confirm="runTool"
+      />
 
       <!-- Action Button -->
       <div class="flex items-center justify-between pt-2">
-        <button v-if="outputLog" @click="clearLog"
-          class="text-sm text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-        >清除日志</button>
+        <button v-if="outputLog" @click="clearLog" class="text-sm text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">清除日志</button>
         <div v-else></div>
-        <button
-          @click="runTool"
+        <button @click="runTool"
           :disabled="loading || (selectedOperation === 'merge_epub' ? mergeFiles.length < 2 : selectedOperation === 'split_epub' && showSplitTargetSelector ? selectedSplitPoints.length === 0 : inputPaths.length === 0)"
-          :class="[
-            'inline-flex items-center px-6 py-2.5 text-sm font-medium rounded-lg shadow-sm text-white transition-all duration-200',
+          :class="['inline-flex items-center px-6 py-2.5 text-sm font-medium rounded-lg shadow-sm text-white transition-all duration-200',
             loading || (selectedOperation === 'merge_epub' ? mergeFiles.length < 2 : selectedOperation === 'split_epub' && showSplitTargetSelector ? selectedSplitPoints.length === 0 : inputPaths.length === 0)
               ? 'bg-gray-300 dark:bg-gray-700 cursor-not-allowed'
-              : 'bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-600 dark:hover:bg-indigo-500 hover:shadow-md active:scale-[0.98]'
-          ]"
+              : 'bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-600 dark:hover:bg-indigo-500 hover:shadow-md active:scale-[0.98]']"
         >
           <svg v-if="loading" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
@@ -914,39 +469,8 @@ const cancelSplitTargetSelection = () => {
         </button>
       </div>
 
-      <!-- Log Output -->
-      <div v-if="outputLog" class="bg-gray-900 rounded-xl overflow-hidden shadow-sm border border-gray-800">
-        <div class="flex items-center justify-between px-4 py-2 bg-gray-800/50 border-b border-gray-800">
-          <div class="flex items-center space-x-3">
-            <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wider">输出日志</h2>
-            <button @click="copyLog" class="inline-flex items-center space-x-1 px-2 py-0.5 text-xs text-gray-400 hover:text-white hover:bg-gray-700 rounded transition-colors">
-              <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-              </svg>
-              <span>复制</span>
-            </button>
-            <button v-if="operationCompleted" @click="openLogFile" class="inline-flex items-center space-x-1 px-2 py-0.5 text-xs text-gray-400 hover:text-white hover:bg-gray-700 rounded transition-colors">
-              <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-              </svg>
-              <span>查看日志文件</span>
-            </button>
-            <button v-if="opfContent" @click="copyOpfContent" class="inline-flex items-center space-x-1 px-2 py-0.5 text-xs text-gray-400 hover:text-white hover:bg-gray-700 rounded transition-colors">
-              <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-              </svg>
-              <span>复制 OPF 内容</span>
-            </button>
-          </div>
-          <div class="flex space-x-1">
-            <span class="w-2.5 h-2.5 rounded-full bg-red-400"></span>
-            <span class="w-2.5 h-2.5 rounded-full bg-yellow-400"></span>
-            <span class="w-2.5 h-2.5 rounded-full bg-green-400"></span>
-          </div>
-        </div>
-        <pre ref="logContainer" class="text-xs text-green-400 font-mono whitespace-pre-wrap p-4 max-h-48 overflow-y-auto leading-relaxed">{{ outputLog }}</pre>
-      </div>
-
+      <OutputLog :log="outputLog" :showOpenLog="operationCompleted" :opfContent="opfContent"
+        @copy="copyLog" @copyOpf="copyOpfContent" @openLog="openLogFile" />
     </div>
   </div>
 </template>
