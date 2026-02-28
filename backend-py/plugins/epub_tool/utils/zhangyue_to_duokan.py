@@ -65,9 +65,10 @@ def _add_epub_namespace(html_content):
     return re.sub(pattern, add_namespace, html_content, count=1, flags=re.IGNORECASE | re.DOTALL)
 
 
-def _convert_zhangyue_inline_asides(text_content):
+def _convert_zhangyue_inline_asides(text_content, images_dir="Images"):
     """
     提取正文中散落的掌阅 <aside> 脚注，移除原位置，收集脚注内容。
+    同时将脚注 <img> 的 src 替换为 note.png 路径。
     
     掌阅格式：
     <aside epub:type="footnote" id="footnote-X-Y">
@@ -136,6 +137,26 @@ def _convert_zhangyue_inline_asides(text_content):
 
     # 移除正文中所有散落的 <aside> 脚注元素
     text_content = aside_pattern.sub('', text_content)
+
+    # 将掌阅脚注 <img> 的 src 统一替换为 note.png
+    # 匹配 class 含 zhangyue-footnote 或 epub-footnote 的 img 标签，替换 src
+    # 根据 XHTML 文件相对于图片目录的位置，计算相对路径
+    note_png_src = f"../{images_dir}/note.png" if '/' in images_dir else f"../{images_dir}/note.png"
+    # 如果 images_dir 包含 OEBPS 等前缀（如 OEBPS/Images），只取最后一级
+    images_basename = images_dir.split('/')[-1] if '/' in images_dir else images_dir
+    note_png_src = f"../{images_basename}/note.png"
+
+    def _replace_img_src(m):
+        tag = m.group(0)
+        tag = re.sub(r'src="[^"]*"', f'src="{note_png_src}"', tag)
+        return tag
+
+    text_content = re.sub(
+        r'<img[^>]*class="[^"]*(?:zhangyue-footnote|epub-footnote)[^"]*"[^>]*/?>',
+        _replace_img_src,
+        text_content,
+        flags=re.IGNORECASE
+    )
 
     # 清理移除 aside 后可能留下的空白行
     text_content = re.sub(r'\n\s*\n\s*\n', '\n\n', text_content)
@@ -215,6 +236,7 @@ class ZhangyueToDuokan:
         )
         self._has_note_png = False
         self._note_png_injected = False
+        self._images_dir = "Images"  # 实际图片目录，由 _detect_images_dir 确定
 
     def _check_note_png_exists(self):
         for name in self.epub.namelist():
@@ -226,26 +248,27 @@ class ZhangyueToDuokan:
         if self._note_png_injected or self._has_note_png:
             return
         if os.path.exists(NOTE_PNG_PATH):
-            images_dir = "Images"
-            for name in self.epub.namelist():
-                lower = name.lower()
-                if '/images/' in lower or lower.startswith('images/'):
-                    parts = name.split('/')
-                    for p in parts:
-                        if p.lower() == 'images':
-                            images_dir = name[:name.index(p) + len(p)]
-                            break
-                    break
-                elif '/image/' in lower or lower.startswith('image/'):
-                    idx = lower.find('image/')
-                    images_dir = name[:idx + len('image')].rstrip('/')
-                    break
-
-            target_path = f"{images_dir}/note.png"
+            target_path = f"{self._images_dir}/note.png"
             with open(NOTE_PNG_PATH, 'rb') as f:
                 self.target_epub.writestr(target_path, f.read())
             self._note_png_injected = True
             logger.write(f"注入 note.png 到 {target_path}")
+
+    def _detect_images_dir(self):
+        """从 EPUB 文件列表中检测实际的图片目录名。"""
+        for name in self.epub.namelist():
+            lower = name.lower()
+            if '/images/' in lower or lower.startswith('images/'):
+                parts = name.split('/')
+                for p in parts:
+                    if p.lower() == 'images':
+                        self._images_dir = name[:name.index(p) + len(p)]
+                        return
+                break
+            elif '/image/' in lower or lower.startswith('image/'):
+                idx = lower.find('image/')
+                self._images_dir = name[:idx + len('image')].rstrip('/')
+                return
 
     def _process_opf(self, filename, content):
         try:
@@ -285,8 +308,8 @@ class ZhangyueToDuokan:
             text = content.decode('utf-8')
             text = _add_epub_namespace(text)
 
-            # 提取并移除散落的掌阅 aside 脚注
-            text, footnotes = _convert_zhangyue_inline_asides(text)
+            # 提取并移除散落的掌阅 aside 脚注，替换 img src 为 note.png
+            text, footnotes = _convert_zhangyue_inline_asides(text, self._images_dir)
 
             if footnotes:
                 self._inject_note_png()
@@ -303,6 +326,7 @@ class ZhangyueToDuokan:
     def process(self):
         try:
             self._has_note_png = self._check_note_png_exists()
+            self._detect_images_dir()
             written_files = set()
             opf_items = []
 
