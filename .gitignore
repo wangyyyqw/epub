@@ -39,3 +39,4 @@ backend-py/test_*.py
 .kiro/
 .DS_Store
 *.log
+log.txt

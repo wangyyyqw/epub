@@ -67,35 +67,36 @@ func projectRoot() string {
 	return "."
 }
 
-// findBackendBinary locates the converter-backend binary
-func (a *App) findBackendBinary() string {
-	binaryName := "converter-backend"
-	if runtime.GOOS == "windows" {
-		binaryName += ".exe"
-	}
-
+// backendSearchPaths returns the common search paths for locating backend-related files.
+func backendSearchPaths() ([]string, string) {
 	ex, err := os.Executable()
 	if err != nil {
-		return ""
+		return nil, ""
 	}
 	exPath := filepath.Dir(ex)
 	root := projectRoot()
 
-	searchPaths := []string{
-		filepath.Join("backend-bin", binaryName),
-		filepath.Join(exPath, "backend-bin", binaryName),
-		filepath.Join(exPath, binaryName),
-		filepath.Join(root, "backend-bin", binaryName),
+	paths := []string{
+		"backend-bin",
+		filepath.Join(exPath, "backend-bin"),
+		exPath,
+		filepath.Join(root, "backend-bin"),
 	}
 
 	// macOS .app bundle: Contents/MacOS/../Resources/backend-bin/
 	if runtime.GOOS == "darwin" {
-		searchPaths = append(searchPaths,
-			filepath.Join(exPath, "..", "Resources", "backend-bin", binaryName),
-		)
+		paths = append(paths, filepath.Join(exPath, "..", "Resources", "backend-bin"))
 	}
 
-	for _, p := range searchPaths {
+	return paths, exPath
+}
+
+// findFileInSearchPaths locates a file by name across backend search paths.
+// Returns the full path if found, empty string otherwise.
+func findFileInSearchPaths(filename string) string {
+	dirs, _ := backendSearchPaths()
+	for _, dir := range dirs {
+		p := filepath.Join(dir, filename)
 		if _, err := os.Stat(p); err == nil {
 			return p
 		}
@@ -103,40 +104,28 @@ func (a *App) findBackendBinary() string {
 	return ""
 }
 
+// findBackendBinary locates the converter-backend binary
+func (a *App) findBackendBinary() string {
+	binaryName := "converter-backend"
+	if runtime.GOOS == "windows" {
+		binaryName += ".exe"
+	}
+	return findFileInSearchPaths(binaryName)
+}
+
 // GetLogFilePath 返回日志文件的完整路径
-// 搜索路径与 findBackendBinary() 一致，在 Python 后端可执行文件所在目录下查找 log.txt
 func (a *App) GetLogFilePath() (string, error) {
 	binaryName := "converter-backend"
 	if runtime.GOOS == "windows" {
 		binaryName += ".exe"
 	}
 
-	ex, err := os.Executable()
-	if err != nil {
-		return "", fmt.Errorf("无法获取可执行文件路径: %s", err)
-	}
-	exPath := filepath.Dir(ex)
-	root := projectRoot()
-
-	searchPaths := []string{
-		filepath.Join("backend-bin", binaryName),
-		filepath.Join(exPath, "backend-bin", binaryName),
-		filepath.Join(exPath, binaryName),
-		filepath.Join(root, "backend-bin", binaryName),
-	}
-
-	if runtime.GOOS == "darwin" {
-		searchPaths = append(searchPaths,
-			filepath.Join(exPath, "..", "Resources", "backend-bin", binaryName),
-		)
-	}
-
-	for _, p := range searchPaths {
-		if _, err := os.Stat(p); err == nil {
-			logPath := filepath.Join(filepath.Dir(p), "log.txt")
-			if _, err := os.Stat(logPath); err == nil {
-				return logPath, nil
-			}
+	// 找到后端二进制文件，然后在同目录下查找 log.txt
+	binaryPath := findFileInSearchPaths(binaryName)
+	if binaryPath != "" {
+		logPath := filepath.Join(filepath.Dir(binaryPath), "log.txt")
+		if _, err := os.Stat(logPath); err == nil {
+			return logPath, nil
 		}
 	}
 

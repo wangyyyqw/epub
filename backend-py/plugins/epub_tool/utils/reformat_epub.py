@@ -809,63 +809,6 @@ class EpubTool:
             logger.write("临时文件不存在或已被删除。")
 
 
-# 相对路径计算函数
-def get_relpath(from_path, to_path):
-    # from_path 和 to_path 都需要是绝对路径
-    from_path = re.split(r"[\\/]", from_path)
-    to_path = re.split(r"[\\/]", to_path)
-    while from_path[0] == to_path[0]:
-        from_path.pop(0), to_path.pop(0)
-    to_path = "../" * (len(from_path) - 1) + "/".join(to_path)
-    return to_path
-
-
-# 计算bookpath
-def get_bookpath(relative_path, refer_bkpath):
-    # relative_path 相对路径，一般是href
-    # refer_bkpath 参考的绝对路径
-
-    relative_ = re.split(r"[\\/]", relative_path)
-    refer_ = re.split(r"[\\/]", refer_bkpath)
-
-    back_step = 0
-    while relative_[0] == "..":
-        back_step += 1
-        relative_.pop(0)
-
-    if len(refer_) <= 1:
-        return "/".join(relative_)
-    else:
-        refer_.pop(-1)
-
-    if back_step < 1:
-        return "/".join(refer_ + relative_)
-    elif back_step > len(refer_):
-        return "/".join(relative_)
-
-    # len(refer_) > 1 and back_setp <= len(refer_):
-    while back_step > 0 and len(refer_) > 0:
-        refer_.pop(-1)
-        back_step -= 1
-
-    return "/".join(refer_ + relative_)
-
-
-def epub_sources():
-    if len(sys.argv) <= 1:
-        return sys.argv
-    epub_srcs = []
-    exe_path = path.dirname(sys.argv[0])
-    epub_srcs.append(exe_path)
-    for epub_src in sys.argv[1:None]:
-        filename = path.basename(epub_src)
-        basename, ext = path.splitext(filename)
-        if ext.lower() == ".epub":
-            if path.exists(epub_src):
-                epub_srcs.append(epub_src)
-    return epub_srcs
-
-
 def run(epub_src, output_path=None):
     try:
         logger.write(f"\n正在尝试重构EPUB: {epub_src}")

@@ -1,24 +1,8 @@
 import re
-from typing import Optional
 
 
 class TextCleaner:
     """Text cleaner for Chinese novel content."""
-    
-    # Common chapter title patterns to skip indentation
-    TITLE_PATTERN = re.compile(
-        r'^[\s　]*(?:'
-        r'序章|楔子|前言|正文|终章|后记|尾声|番外|'
-        r'第[零一二三四五六七八九十百千万\d]+[章节回部集卷]|'
-        r'Chapter\s+\d+|'
-        r'[【〔〖「『〈［\[]第|'
-        r'卷[零一二三四五六七八九十百千万\d]+'
-        r')',
-        re.IGNORECASE
-    )
-    
-    # Full-width indent (Chinese standard)
-    INDENT = '\u3000\u3000'
     
     def __init__(self, remove_empty_lines: bool = True, fix_indent: bool = True):
         self.remove_empty_lines = remove_empty_lines
