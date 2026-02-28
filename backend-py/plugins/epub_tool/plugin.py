@@ -7,7 +7,7 @@ from core.plugin_base import BasePlugin
 from .utils import encrypt_epub, decrypt_epub, reformat_epub, \
     chinese_convert, font_subset, img_compress, img_to_webp, \
     webp_to_img, phonetic_notation, pinyin_annotate, \
-    yuewei_to_duokan, encrypt_font, download_web_images, regex_comment, \
+    yuewei_to_duokan, zhangyue_to_duokan, encrypt_font, download_web_images, regex_comment, \
     footnote_to_comment, convert_version, view_opf, merge_epub, split_epub
 
 class EpubToolPlugin(BasePlugin):
@@ -23,7 +23,7 @@ class EpubToolPlugin(BasePlugin):
         parser.add_argument("--operation", choices=[
             "encrypt", "encrypt_font", "list_font_targets", "decrypt", "reformat", "s2t", "t2s", 
             "font_subset", "img_compress", "img_to_webp", 
-            "webp_to_img", "phonetic", "yuewei", "download_images", "comment", "footnote_conv",
+            "webp_to_img", "phonetic", "yuewei", "zhangyue", "download_images", "comment", "footnote_conv",
             "convert_version", "view_opf",
             "merge", "split", "list_split_targets"
         ], required=True, help="Operation to perform")
@@ -98,7 +98,11 @@ class EpubToolPlugin(BasePlugin):
                 res = phonetic_notation.run_add_pinyin(args.input_path, output_dir)
                 result = res[0] if isinstance(res, (tuple, list)) else res
             elif args.operation == "yuewei":
-                result = yuewei_to_duokan.run(args.input_path, output_dir)
+                res = yuewei_to_duokan.run(args.input_path, output_dir)
+                result = res[0] if isinstance(res, (tuple, list)) else res
+            elif args.operation == "zhangyue":
+                res = zhangyue_to_duokan.run(args.input_path, output_dir)
+                result = res[0] if isinstance(res, (tuple, list)) else res
             elif args.operation == "download_images":
                 result = download_web_images.run(args.input_path, output_dir)
             elif args.operation == "comment":

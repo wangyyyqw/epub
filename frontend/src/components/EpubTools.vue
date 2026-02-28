@@ -76,7 +76,8 @@ const operationsMap = {
   comment: { label: '正则匹配→弹窗', desc: '用正则表达式匹配文本并转为弹窗注释', details: '将匹配到的注释内容转换为多看/Kindle 支持的弹窗式注释，点击即可查看。', category: 'annotate', hasRegex: true },
   footnote_conv: { label: '脚注→弹窗', desc: '将已有的链接式脚注转为阅微弹窗样式', details: '将 EPUB 中已有的超链接脚注转换为阅微弹窗样式的注释，阅读更流畅。', category: 'annotate', hasRegex: true },
   download_images: { label: '下载网络图片', desc: '将 EPUB 中引用的网络图片下载到本地', details: '扫描 EPUB 中所有引用外部 URL 的图片，下载并嵌入到 EPUB 文件中，确保离线阅读正常。', category: 'other' },
-  yuewei: { label: '阅微→多看', desc: '将阅微格式的注释转换为多看格式', details: '兼容阅微平台导出的 EPUB 注释格式，转换为多看阅读器支持的标准格式。', category: 'other' }
+  yuewei: { label: '阅微→多看', desc: '将阅微格式的注释转换为多看格式', details: '兼容阅微平台导出的 EPUB 注释格式，转换为多看阅读器支持的标准格式。', category: 'other' },
+  zhangyue: { label: '掌阅→多看', desc: '将掌阅格式的脚注转换为多看格式', details: '将掌阅平台 EPUB 中散落在正文的 aside 脚注提取出来，转换为多看阅读器支持的标准弹窗注释格式。', category: 'other' }
 }
 
 const currentToolInfo = computed(() => operationsMap[selectedOperation.value] || { label: '未知功能', desc: '', details: '' })

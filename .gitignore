@@ -28,6 +28,12 @@ backend-bin/log.txt
 backend-py/log.txt
 backend-py/test_*.py
 
+# Hypothesis test cache
+.hypothesis/
+
+# Test epub files
+*.epub
+
 # IDE & OS
 .alma-snapshots
 .kiro/

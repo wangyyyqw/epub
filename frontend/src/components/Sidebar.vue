@@ -53,6 +53,7 @@ const toolGroups = [
   {
     key: 'other', label: '其它', items: [
       { id: 'tool:yuewei', label: '阅微→多看', icon: 'M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4' },
+      { id: 'tool:zhangyue', label: '掌阅→多看', icon: 'M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4' },
     ]
   },
 ]

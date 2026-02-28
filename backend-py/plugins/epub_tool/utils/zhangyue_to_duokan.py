@@ -1,9 +1,20 @@
+"""
+掌阅转多看：将掌阅格式的脚注转换为标准多看格式。
+
+掌阅格式特点：
+- <aside> 元素散落在正文中，紧跟 <sup> 标签
+- <li> 内容没有 <p> 包裹，没有返回链接
+- <img> 使用 class="epub-footnote zhangyue-footnote qqreader-footnote"
+
+转换后：
+- 移除正文中散落的 <aside> 元素
+- 在 </body> 前集中生成标准多看格式的脚注区域
+- 每个脚注有 <p> 包裹和返回链接
+"""
 import zipfile
 import os
-from bs4 import BeautifulSoup
 import traceback
 import re
-import shutil
 
 try:
     from ..log import logwriter
@@ -12,12 +23,10 @@ except ImportError:
 
 logger = logwriter()
 
-# note.png path relative to this file
 NOTE_PNG_PATH = os.path.join(os.path.dirname(__file__), "note.png")
 
 
 def _escape_html(text):
-    """Escape HTML special characters."""
     if not text:
         return text
     text = text.replace('&', '&amp;')
@@ -40,7 +49,6 @@ def _add_epub_namespace(html_content):
         tag_end = match.group(2)
         if re.search(epub_ns_pattern, tag_start):
             return match.group(0)
-
         xmlns_match = re.search(
             r'xmlns\s*=\s*["\']http://www\.w3\.org/1999/xhtml["\']', tag_start
         )
@@ -57,111 +65,90 @@ def _add_epub_namespace(html_content):
     return re.sub(pattern, add_namespace, html_content, count=1, flags=re.IGNORECASE | re.DOTALL)
 
 
-def _extract_zy_footnote_content(text_content, match_start):
-    """Extract zy-footnote or alt content near a match position."""
-    # Search within a reasonable window after the match
-    search_end = min(match_start + 800, len(text_content))
-    window = text_content[match_start:search_end]
+def _convert_zhangyue_inline_asides(text_content):
+    """
+    提取正文中散落的掌阅 <aside> 脚注，移除原位置，收集脚注内容。
+    
+    掌阅格式：
+    <aside epub:type="footnote" id="footnote-X-Y">
+      <ol class="duokan-footnote-content" ...>
+        <li class="duokan-footnote-item" id="footnote-X-Y">脚注内容</li>
+      </ol>
+    </aside>
+    <sup><a class="duokan-footnote" epub:type="noteref" href="#footnote-X-Y">
+      <img ... class="epub-footnote zhangyue-footnote qqreader-footnote"/>
+    </a></sup>
+    
+    Returns: (modified_content, footnotes_list)
+    """
+    # 匹配散落在正文中的 <aside> 元素
+    aside_pattern = re.compile(
+        r'<aside[^>]*epub:type="footnote"[^>]*id="([^"]+)"[^>]*>'
+        r'(.*?)</aside>',
+        re.DOTALL | re.IGNORECASE
+    )
 
-    # Try zy-footnote first, then fall back to alt
-    m = re.search(r'zy-footnote="([^"]*)"', window)
-    if not m:
-        m = re.search(r'alt="([^"]*)"', window)
-    return m.group(1) if m else ""
-
-
-def _collect_existing_duokan_footnotes(text_content):
-    """Collect footnotes from existing duokan-footnote anchors that lack aside elements."""
     footnotes = []
-
-    # Three patterns for different attribute orderings
-    patterns = [
-        # href before id
-        (r'<a[^>]*class="[^"]*duokan-footnote[^"]*"[^>]*href="#([^"]+)"[^>]*id="([^"]+)"[^>]*>',
-         lambda m: (m.group(1), m.group(2))),
-        # id before href
-        (r'<a[^>]*id="([^"]+)"[^>]*class="[^"]*duokan-footnote[^"]*"[^>]*href="#([^"]+)"[^>]*>',
-         lambda m: (m.group(2), m.group(1))),
-        # no id attribute
-        (r'<a(?![^>]*\bid\s*=)[^>]*class="[^"]*duokan-footnote[^"]*"[^>]*href="#([^"]+)"[^>]*>',
-         lambda m: (m.group(1), m.group(1) + "_ref")),
-    ]
-
     seen_ids = set()
-    for pattern, extract_ids in patterns:
-        for match in re.finditer(pattern, text_content):
-            note_id, note_ref_id = extract_ids(match)
-            if note_id in seen_ids:
-                continue
 
-            # Skip if aside already exists
-            if re.search(rf'<aside[^>]*id="{re.escape(note_id)}"[^>]*>', text_content):
-                continue
+    for match in aside_pattern.finditer(text_content):
+        note_id = match.group(1)
+        aside_inner = match.group(2)
 
-            note_content = _extract_zy_footnote_content(text_content, match.start())
-            seen_ids.add(note_id)
-            footnotes.append({
-                'id': note_id,
-                'ref_id': note_ref_id,
-                'content': _escape_html(note_content),
-            })
+        if note_id in seen_ids:
+            continue
+        seen_ids.add(note_id)
 
-    return footnotes
-
-
-def _convert_yuewei_spans(text_content):
-    """Convert yuewei reader footnote spans to duokan format. Returns (modified_content, footnotes)."""
-    # Match yuewei footnote spans (both class orderings)
-    span_pattern1 = r'<span[^>]*class="[^"]*reader[^"]*js_readerFooterNote[^"]*"[^>]*data-wr-footernote="([^"]*)"[^>]*>\s*</span>'
-    span_pattern2 = r'<span[^>]*class="[^"]*js_readerFooterNote[^"]*reader[^"]*"[^>]*data-wr-footernote="([^"]*)"[^>]*>\s*</span>'
-
-    matches = list(re.finditer(span_pattern1, text_content))
-    seen_spans = {m.group(0) for m in matches}
-    for m in re.finditer(span_pattern2, text_content):
-        if m.group(0) not in seen_spans:
-            matches.append(m)
-    matches.sort(key=lambda m: m.start())
-
-    if not matches:
-        return text_content, []
-
-    # Assign sequential numbers by position
-    position_numbers = {m.start(): i for i, m in enumerate(matches, 1)}
-    footnotes = []
-
-    # Replace in reverse to preserve positions
-    for match in reversed(matches):
-        note_number = position_numbers[match.start()]
-        note_id = f"note{note_number}"
-        note_ref_id = f"note_ref{note_number}"
-        note_content = _escape_html(match.group(1))
-
-        replacement = (
-            f'      <sup>\n'
-            f'         <a class="duokan-footnote" epub:type="noteref" href="#{note_id}" id="{note_ref_id}">\n'
-            f'           <img alt="note" class="zhangyue-footnote" src="../Images/note.png" zy-footnote="{note_content}"/>\n'
-            f'         </a>\n'
-            f'       </sup>'
+        # 从 <li> 中提取脚注文本内容
+        li_match = re.search(
+            r'<li[^>]*class="duokan-footnote-item"[^>]*>(.*?)</li>',
+            aside_inner, re.DOTALL | re.IGNORECASE
         )
+        note_content = ""
+        if li_match:
+            # 去除内部 HTML 标签，只保留纯文本
+            raw = li_match.group(1).strip()
+            note_content = re.sub(r'<[^>]+>', '', raw).strip()
 
-        start, end = match.span()
-        text_content = text_content[:start] + replacement + text_content[end:]
+        # 查找对应的 <a> 引用，提取 ref id
+        ref_pattern = re.compile(
+            r'<a[^>]*class="[^"]*duokan-footnote[^"]*"[^>]*href="#'
+            + re.escape(note_id) + r'"[^>]*id="([^"]+)"',
+            re.IGNORECASE
+        )
+        ref_match = ref_pattern.search(text_content)
+        if not ref_match:
+            # 尝试 id 在 href 前面的情况
+            ref_pattern2 = re.compile(
+                r'<a[^>]*id="([^"]+)"[^>]*class="[^"]*duokan-footnote[^"]*"[^>]*href="#'
+                + re.escape(note_id) + r'"',
+                re.IGNORECASE
+            )
+            ref_match = ref_pattern2.search(text_content)
+
+        note_ref_id = ref_match.group(1) if ref_match else note_id + "_ref"
 
         footnotes.append({
             'id': note_id,
             'ref_id': note_ref_id,
-            'content': note_content,
+            'content': _escape_html(note_content),
         })
+
+    # 移除正文中所有散落的 <aside> 脚注元素
+    text_content = aside_pattern.sub('', text_content)
+
+    # 清理移除 aside 后可能留下的空白行
+    text_content = re.sub(r'\n\s*\n\s*\n', '\n\n', text_content)
 
     return text_content, footnotes
 
 
 def _build_footnote_section(footnotes):
-    """Build the aside footnote HTML section from a list of footnotes."""
+    """构建标准多看格式的脚注区域 HTML。"""
     if not footnotes:
         return ""
 
-    # Deduplicate by id
+    # 去重
     seen = set()
     unique = []
     for note in footnotes:
@@ -169,10 +156,10 @@ def _build_footnote_section(footnotes):
             seen.add(note['id'])
             unique.append(note)
 
-    # Sort by numeric suffix
+    # 按数字排序
     def sort_key(note):
-        m = re.search(r'(\d+)', note['id'])
-        return int(m.group(1)) if m else 0
+        nums = re.findall(r'(\d+)', note['id'])
+        return [int(n) for n in nums] if nums else [0]
 
     unique.sort(key=sort_key)
 
@@ -191,7 +178,7 @@ def _build_footnote_section(footnotes):
 
 
 def _inject_footnotes_before_body_close(text_content, footnote_section):
-    """Insert footnote section before </body>."""
+    """在 </body> 前插入脚注区域。"""
     if not footnote_section:
         return text_content
     if '</body>' in text_content:
@@ -200,9 +187,7 @@ def _inject_footnotes_before_body_close(text_content, footnote_section):
     return text_content + footnote_section
 
 
-
-
-class YueweiToDuokan:
+class ZhangyueToDuokan:
     def __init__(self, epub_path, output_path):
         if not os.path.exists(epub_path):
             raise Exception("EPUB文件不存在")
@@ -232,26 +217,19 @@ class YueweiToDuokan:
         self._note_png_injected = False
 
     def _check_note_png_exists(self):
-        """Check if note.png already exists in the source EPUB."""
         for name in self.epub.namelist():
             if name.lower().endswith('note.png'):
                 return True
         return False
 
     def _inject_note_png(self):
-        """Inject note.png into the EPUB if it doesn't exist and we have a local copy."""
         if self._note_png_injected or self._has_note_png:
             return
         if os.path.exists(NOTE_PNG_PATH):
-            # Find the Images directory path from existing files
             images_dir = "Images"
             for name in self.epub.namelist():
                 lower = name.lower()
                 if '/images/' in lower or lower.startswith('images/'):
-                    # Extract the actual Images directory path
-                    idx = lower.find('images/')
-                    images_dir = name[:idx + len('images')].rstrip('/')
-                    # Preserve original casing
                     parts = name.split('/')
                     for p in parts:
                         if p.lower() == 'images':
@@ -270,8 +248,8 @@ class YueweiToDuokan:
             logger.write(f"注入 note.png 到 {target_path}")
 
     def _process_opf(self, filename, content):
-        """Process OPF file: remove duplicate manifest items."""
         try:
+            from bs4 import BeautifulSoup
             text = content.decode('utf-8')
             soup = BeautifulSoup(text, 'xml')
             manifest = soup.find('manifest')
@@ -286,7 +264,6 @@ class YueweiToDuokan:
                         else:
                             seen_hrefs.add(href)
 
-                # Add note.png to manifest if we injected it
                 if self._note_png_injected and not any(
                     item_tag.get('href', '').endswith('note.png')
                     for item_tag in manifest.find_all('item')
@@ -304,23 +281,18 @@ class YueweiToDuokan:
             return content
 
     def _process_html(self, filename, content):
-        """Process HTML/XHTML file: convert yuewei footnotes to duokan format."""
         try:
             text = content.decode('utf-8')
             text = _add_epub_namespace(text)
 
-            # Convert yuewei spans to duokan format
-            text, footnotes = _convert_yuewei_spans(text)
+            # 提取并移除散落的掌阅 aside 脚注
+            text, footnotes = _convert_zhangyue_inline_asides(text)
 
-            # Collect existing duokan footnotes that need aside elements
-            existing_footnotes = _collect_existing_duokan_footnotes(text)
-            footnotes.extend(existing_footnotes)
-
-            # If we found any footnotes, inject note.png and build footnote section
             if footnotes:
                 self._inject_note_png()
                 footnote_section = _build_footnote_section(footnotes)
                 text = _inject_footnotes_before_body_close(text, footnote_section)
+                logger.write(f"  {filename}: 转换 {len(footnotes)} 个掌阅脚注")
 
             return text.encode('utf-8')
         except Exception as e:
@@ -332,8 +304,6 @@ class YueweiToDuokan:
         try:
             self._has_note_png = self._check_note_png_exists()
             written_files = set()
-
-            # Process all files, saving OPF for last so we can update manifest
             opf_items = []
 
             for item in self.epub.infolist():
@@ -343,7 +313,6 @@ class YueweiToDuokan:
 
                 content = self.epub.read(item.filename)
 
-                # mimetype must be stored uncompressed per EPUB spec
                 if item.filename == 'mimetype':
                     self.target_epub.writestr(item.filename, content, compress_type=zipfile.ZIP_STORED)
                     written_files.add(item.filename)
@@ -358,7 +327,6 @@ class YueweiToDuokan:
                     self.target_epub.writestr(item, content)
                     written_files.add(item.filename)
 
-            # Process OPF files last (after note.png injection decision)
             for item, content in opf_items:
                 new_content = self._process_opf(item.filename, content)
                 self.target_epub.writestr(item.filename, new_content)
@@ -385,6 +353,6 @@ class YueweiToDuokan:
 
 
 def run(epub_path, output_path=None):
-    logger.write(f"\\n正在执行阅微转多看: {epub_path}")
-    tool = YueweiToDuokan(epub_path, output_path)
+    logger.write(f"\n正在执行掌阅转多看: {epub_path}")
+    tool = ZhangyueToDuokan(epub_path, output_path)
     return tool.process()
