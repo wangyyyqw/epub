@@ -273,6 +273,7 @@ class ZhangyueToDuokan:
     def _process_opf(self, filename, content):
         try:
             from bs4 import BeautifulSoup
+            import posixpath
             text = content.decode('utf-8')
             soup = BeautifulSoup(text, 'xml')
             manifest = soup.find('manifest')
@@ -291,11 +292,20 @@ class ZhangyueToDuokan:
                     item_tag.get('href', '').endswith('note.png')
                     for item_tag in manifest.find_all('item')
                 ):
+                    # 计算 note.png 相对于 OPF 文件的路径
+                    note_png_full = f"{self._images_dir}/note.png"
+                    opf_dir = posixpath.dirname(filename)
+                    if opf_dir:
+                        rel_href = posixpath.relpath(note_png_full, opf_dir)
+                    else:
+                        rel_href = note_png_full
+
                     new_item = soup.new_tag('item')
                     new_item['id'] = 'note-png'
-                    new_item['href'] = 'Images/note.png'
+                    new_item['href'] = rel_href
                     new_item['media-type'] = 'image/png'
                     manifest.append(new_item)
+                    logger.write(f"OPF manifest 添加 note.png: {rel_href}")
 
             return str(soup).encode('utf-8')
         except Exception as e:

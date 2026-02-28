@@ -230,6 +230,7 @@ class YueweiToDuokan:
         )
         self._has_note_png = False
         self._note_png_injected = False
+        self._images_dir = "Images"
 
     def _check_note_png_exists(self):
         """Check if note.png already exists in the source EPUB."""
@@ -243,35 +244,32 @@ class YueweiToDuokan:
         if self._note_png_injected or self._has_note_png:
             return
         if os.path.exists(NOTE_PNG_PATH):
-            # Find the Images directory path from existing files
-            images_dir = "Images"
-            for name in self.epub.namelist():
-                lower = name.lower()
-                if '/images/' in lower or lower.startswith('images/'):
-                    # Extract the actual Images directory path
-                    idx = lower.find('images/')
-                    images_dir = name[:idx + len('images')].rstrip('/')
-                    # Preserve original casing
-                    parts = name.split('/')
-                    for p in parts:
-                        if p.lower() == 'images':
-                            images_dir = name[:name.index(p) + len(p)]
-                            break
-                    break
-                elif '/image/' in lower or lower.startswith('image/'):
-                    idx = lower.find('image/')
-                    images_dir = name[:idx + len('image')].rstrip('/')
-                    break
-
-            target_path = f"{images_dir}/note.png"
+            target_path = f"{self._images_dir}/note.png"
             with open(NOTE_PNG_PATH, 'rb') as f:
                 self.target_epub.writestr(target_path, f.read())
             self._note_png_injected = True
             logger.write(f"注入 note.png 到 {target_path}")
 
+    def _detect_images_dir(self):
+        """从 EPUB 文件列表中检测实际的图片目录名。"""
+        for name in self.epub.namelist():
+            lower = name.lower()
+            if '/images/' in lower or lower.startswith('images/'):
+                parts = name.split('/')
+                for p in parts:
+                    if p.lower() == 'images':
+                        self._images_dir = name[:name.index(p) + len(p)]
+                        return
+                break
+            elif '/image/' in lower or lower.startswith('image/'):
+                idx = lower.find('image/')
+                self._images_dir = name[:idx + len('image')].rstrip('/')
+                return
+
     def _process_opf(self, filename, content):
         """Process OPF file: remove duplicate manifest items."""
         try:
+            import posixpath
             text = content.decode('utf-8')
             soup = BeautifulSoup(text, 'xml')
             manifest = soup.find('manifest')
@@ -291,11 +289,19 @@ class YueweiToDuokan:
                     item_tag.get('href', '').endswith('note.png')
                     for item_tag in manifest.find_all('item')
                 ):
+                    note_png_full = f"{self._images_dir}/note.png"
+                    opf_dir = posixpath.dirname(filename)
+                    if opf_dir:
+                        rel_href = posixpath.relpath(note_png_full, opf_dir)
+                    else:
+                        rel_href = note_png_full
+
                     new_item = soup.new_tag('item')
                     new_item['id'] = 'note-png'
-                    new_item['href'] = 'Images/note.png'
+                    new_item['href'] = rel_href
                     new_item['media-type'] = 'image/png'
                     manifest.append(new_item)
+                    logger.write(f"OPF manifest 添加 note.png: {rel_href}")
 
             return str(soup).encode('utf-8')
         except Exception as e:
@@ -331,6 +337,7 @@ class YueweiToDuokan:
     def process(self):
         try:
             self._has_note_png = self._check_note_png_exists()
+            self._detect_images_dir()
             written_files = set()
 
             # Process all files, saving OPF for last so we can update manifest
