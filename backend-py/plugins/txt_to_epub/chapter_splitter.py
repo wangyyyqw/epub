@@ -12,34 +12,42 @@ class DefaultChapterSplitter:
     Supports split control per pattern (like SplitChapter plugin).
     """
     
+    # 数字字符类：阿拉伯数字 + 全角数字 + 中文数字
+    _D = r"[\d０-９〇零一二两三四五六七八九十百千万壹贰叁肆伍陆柒捌玖拾佰仟]"
+    # 标题分隔符：空格、中英文标点、中间点等
+    _SEP = r"[\s·、，,：:.\-—–]"
+
     PRESET_PATTERNS = [
-        {"name": "标准章节 (第X章/节)", "pattern": r"^[ 　\t]{0,4}第\s{0,4}[\d〇零一二两三四五六七八九十百千万壹贰叁肆伍陆柒捌玖拾佰仟]+?\s{0,4}(?:章|节(?!课)).{0,30}$", "level": 1, "split": True},
-        
-        {"name": "卷/部/篇 (第X卷)", "pattern": r"^[ 　\t]{0,4}第\s{0,4}[\d〇零一二两三四五六七八九十百千万壹贰叁肆伍陆柒捌玖拾佰仟]+?\s{0,4}(?:卷|部(?![分赛游])|篇(?!张)|集(?![合和])).{0,30}$", "level": 0, "split": True},
-        
-        {"name": "特殊章节 (序章/终章)", "pattern": r"^[ 　\t]{0,4}(?:序章|楔子|正文(?!完|结)|终章|后记|尾声|番外).{0,20}$", "level": 1, "split": True},
-        
-        {"name": "数字+分隔符 (1、Title)", "pattern": r"^[ 　\t]{0,4}\d{1,5}[:：,.， 、_—\-].{1,30}$", "level": 2, "split": True},
-        
-        {"name": "中文数字+分隔符 (一、Title)", "pattern": r"^[ 　\t]{0,4}[零一二两三四五六七八九十百千万壹贰叁肆伍陆柒捌玖拾佰仟]{1,8}[ 、_—\-].{1,30}$", "level": 2, "split": True},
-        
-        {"name": "英文 (Chapter N)", "pattern": r"^[ 　\t]{0,4}(?:[Cc]hapter|[Ss]ection|[Pp]art|ＰＡＲＴ|[Nn][oO][.、]|[Ee]pisode)\s{0,4}\d{1,4}.{0,30}$", "level": 1, "split": True},
-        
-        {"name": "特殊符号封装 (【第一章】)", "pattern": r"^[ 　\t]{0,4}[【〔〖「『〈［\[](?:第|[Cc]hapter)[\d零一二三四五六七八九十百千万壹贰叁肆伍陆柒捌玖拾佰仟]{1,10}[章节].{0,20}$", "level": 2, "split": True},
-        
-        {"name": "特殊符号引导 (☆、Title)", "pattern": r"^[ 　\t]{0,4}[☆★✦✧].{1,30}$", "level": 2, "split": True},
-        
-        {"name": "简介/前言", "pattern": r"^[ 　\t]{0,4}(?:(?:内容|文章)?简介|文案|前言).{0,20}$", "level": 1, "split": True},
-        
-        {"name": "书名+括号数字", "pattern": r"^[一-龥]{1,20}[ 　\t]{0,4}[(（][\d〇零一二两三四五六七八九十百千万壹贰叁肆伍陆柒捌玖拾佰仟]{1,8}[)）][ 　\t]{0,4}$", "level": 2, "split": True},
-        
-        {"name": "书名+数字", "pattern": r"^[一-龥]{1,20}[ 　\t]{0,4}[\d〇零一二两三四五六七八九十百千万壹贰叁肆伍陆柒捌玖拾佰仟]{1,8}[ 　\t]{0,4}$", "level": 2, "split": True},
-        
-        {"name": "分页/分节阅读", "pattern": r"^[ 　\t]{0,4}(?:.{0,15}分[页节章段]阅读[-_ ]|第\s{0,4}[\d零一二两三四五六七八九十百千万]{1,6}\s{0,4}[页节]).{0,30}$", "level": 2, "split": False},
-        
-        {"name": "简单章节 (第x节)", "pattern": r"^\s*第[零一二三四五六七八九十百千万\d]+节[：:、\s]*.*$", "level": 2, "split": True},
-        {"name": "简单回目 (第x回)", "pattern": r"^\s*第[零一二三四五六七八九十百千万\d]+回[：:、\s]*.*$", "level": 1, "split": True},
-        {"name": "简单部/集", "pattern": r"^\s*第[零一二三四五六七八九十百千万\d]+[部集][：:、\s]*.*$", "level": 0, "split": True},
+        # ── 卷/部/篇/集 (最高层级) ──
+        {"name": "卷/部/篇 (第X卷)", "pattern": rf"^[ 　\t]{{0,4}}第\s{{0,4}}{_D}+?\s{{0,4}}(?:卷|部(?![分赛游])|篇(?!张)|集(?![合和])){_SEP}*.{{0,30}}$", "level": 0, "split": True},
+        {"name": "简单部/集", "pattern": rf"^\s*第{_D}+[部集]{_SEP}*.{{0,30}}$", "level": 0, "split": True},
+
+        # ── 章/节/回 (标准层级) ──
+        {"name": "标准章节 (第X章)", "pattern": rf"^[ 　\t]{{0,4}}第\s{{0,4}}{_D}+?\s{{0,4}}章{_SEP}*.{{0,30}}$", "level": 1, "split": True},
+        {"name": "标准节 (第X节)", "pattern": rf"^[ 　\t]{{0,4}}第\s{{0,4}}{_D}+?\s{{0,4}}节(?!课){_SEP}*.{{0,30}}$", "level": 2, "split": True},
+        {"name": "标准回目 (第X回)", "pattern": rf"^[ 　\t]{{0,4}}第\s{{0,4}}{_D}+?\s{{0,4}}回{_SEP}*.{{0,30}}$", "level": 1, "split": True},
+
+        # ── 特殊章节 ──
+        {"name": "特殊章节 (序章/终章)", "pattern": r"^[ 　\t]{0,4}(?:序章|楔子|引子|引言|正文(?!完|结)|终章|后记|尾声|番外|附录|跋)[\s·、，,：:.\-—–]*.{0,20}$", "level": 1, "split": True},
+        {"name": "简介/前言", "pattern": r"^[ 　\t]{0,4}(?:(?:内容|文章)?简介|文案|前言|自序|代序)[\s·、，,：:.\-—–]*.{0,20}$", "level": 1, "split": True},
+
+        # ── 数字编号 ──
+        {"name": "数字+分隔符 (1、Title)", "pattern": rf"^[ 　\t]{{0,4}}[\d０-９]{{1,5}}{_SEP}.{{1,30}}$", "level": 2, "split": True},
+        {"name": "中文数字+分隔符 (一、Title)", "pattern": r"^[ 　\t]{0,4}[零一二两三四五六七八九十百千万壹贰叁肆伍陆柒捌玖拾佰仟]{1,8}[·、，,：:.\-—– ].{1,30}$", "level": 2, "split": True},
+
+        # ── 英文 ──
+        {"name": "英文 (Chapter N)", "pattern": r"^[ 　\t]{0,4}(?:\d+[\s.]*\s*)?(?:[Cc]hapter|[Ss]ection|[Pp]art|ＰＡＲＴ|[Nn][oO][.、]|[Ee]pisode)\s{0,4}[\d０-９]{1,4}[\s·、，,：:.\-—–]*.{0,30}$", "level": 1, "split": True},
+
+        # ── 特殊符号 ──
+        {"name": "特殊符号封装 (【第一章】)", "pattern": rf"^[ 　\t]{{0,4}}[【〔〖「『〈［\[](?:第|[Cc]hapter){_D}{{1,10}}[章节回]{_SEP}*.{{0,20}}$", "level": 2, "split": True},
+        {"name": "特殊符号引导 (☆、Title)", "pattern": r"^[ 　\t]{0,4}[☆★✦✧◆◇■□▲△●○].{1,30}$", "level": 2, "split": True},
+
+        # ── 书名+编号 ──
+        {"name": "书名+括号数字", "pattern": rf"^[\u4e00-\u9fff]{{1,20}}[ 　\t]{{0,4}}[(（]{_D}{{1,8}}[)）][ 　\t]{{0,4}}$", "level": 2, "split": True},
+        {"name": "书名+数字", "pattern": rf"^[\u4e00-\u9fff]{{1,20}}[ 　\t]{{0,4}}{_D}{{1,8}}[ 　\t]{{0,4}}$", "level": 2, "split": True},
+
+        # ── 分页/分节阅读 (不分割) ──
+        {"name": "分页/分节阅读", "pattern": rf"^[ 　\t]{{0,4}}(?:.{{0,15}}分[页节章段]阅读[-_ ]|第\s{{0,4}}{_D}{{1,6}}\s{{0,4}}[页节]).{{0,30}}$", "level": 2, "split": False},
     ]
 
     def split(self, text: str, custom_pattern: str = None) -> List[Tuple[str, str]]:
@@ -56,7 +64,7 @@ class DefaultChapterSplitter:
 
         pattern_str = custom_pattern
         if not pattern_str:
-            pattern_str = r"^\s*((?:第[零一二三四五六七八九十百千万\d]+章)|(?:Chapter\s+\d+)|(?:第\s*\d+\s*节)|(?:卷[零一二三四五六七八九十百千万\d]+))[：:、\s]*.*$"
+            pattern_str = rf"^\s*(?:第[\d０-９〇零一二两三四五六七八九十百千万壹贰叁肆伍陆柒捌玖拾佰仟]+\s*[章节回]|(?:\d+[\s.]*\s*)?[Cc]hapter\s*[\d０-９]+|卷[\d０-９〇零一二两三四五六七八九十百千万壹贰叁肆伍陆柒捌玖拾佰仟]+)[\s·、，,：:.\-—–]*.*$"
 
         chapter_pattern = re.compile(pattern_str, re.M)
         matches = list(chapter_pattern.finditer(text))
