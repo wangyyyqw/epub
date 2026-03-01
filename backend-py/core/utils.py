@@ -1,10 +1,16 @@
 import chardet
 import os
+import sys
+
 
 def detect_encoding(file_path: str, verbose: bool = True) -> str:
     """
-    Detect file encoding by reading the first 50KB.
-    Falls back to utf-8 if detection fails.
+    Detect file encoding using chardet + fallback chain.
+    
+    Strategy (inspired by SplitChapter):
+    1. Use chardet for high-confidence detection
+    2. If chardet confidence < 0.7, try fallback chain: utf-8 → utf-16 → gbk
+    3. Final fallback: utf-8 with errors='replace'
     """
     if not os.path.exists(file_path):
         return 'utf-8'
@@ -20,11 +26,25 @@ def detect_encoding(file_path: str, verbose: bool = True) -> str:
     confidence = result.get('confidence', 0)
     
     if verbose:
-        import sys
         print(f"PROGRESS: 10% (Detected encoding: {encoding}, confidence: {confidence})", file=sys.stderr)
     
-    # chardet may return None for unrecognizable content
-    if encoding is None:
-        return 'utf-8'
+    # High confidence: trust chardet
+    if encoding and confidence >= 0.7:
+        return encoding
+    
+    # Low confidence or None: try fallback chain (utf-8 → gbk → utf-16)
+    # gbk 在 utf-16 前面，因为中文 TXT 文件 GBK 编码更常见
+    for fallback in ('utf-8', 'gbk', 'utf-16'):
+        try:
+            rawdata.decode(fallback)
+            if verbose:
+                print(f"PROGRESS: 10% (Fallback encoding: {fallback})", file=sys.stderr)
+            return fallback
+        except (UnicodeDecodeError, Exception):
+            continue
+    
+    # chardet gave something, use it even with low confidence
+    if encoding:
+        return encoding
         
-    return encoding
+    return 'utf-8'

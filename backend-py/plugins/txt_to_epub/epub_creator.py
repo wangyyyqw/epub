@@ -6,8 +6,17 @@ import re
 import zipfile
 import tempfile
 import shutil
+from html import unescape as html_unescape
 from ebooklib import epub
 from typing import List, Dict, Any, Tuple, Union, Optional
+from .text_cleaner import BLANK_CHARS
+
+
+def _safe_escape(text: str) -> str:
+    """安全的 HTML 转义：先 unescape 避免双重转义，再 escape。
+    参考 SplitChapter 的处理方式。"""
+    text = html_unescape(text)
+    return html.escape(text)
 
 
 def _downgrade_to_epub2(epub_path: str) -> None:
@@ -168,13 +177,13 @@ def create_epub(
     def create_chapter_html(chapter_title: str, content: str, level: int = 1) -> str:
         level = max(1, min(6, level))
         
-        display_title = html.escape(chapter_title)
+        display_title = _safe_escape(chapter_title)
         
         if split_title:
             match = re.match(r'^(第.+?章)\s*(.*)$', chapter_title)
             if match:
-                number_part = html.escape(match.group(1))
-                title_part = html.escape(match.group(2))
+                number_part = _safe_escape(match.group(1))
+                title_part = _safe_escape(match.group(2))
                 display_title = f'<span class="number">{number_part}</span><br/><span class="title">{title_part}</span>'
         
         html_parts = []
@@ -188,7 +197,7 @@ def create_epub(
             
         html_parts.append(f'<h{level}>{display_title}</h{level}>')
         
-        lines = [f'<p>{html.escape(line.strip())}</p>' for line in content.split('\n') if line.strip()]
+        lines = [f'<p>{_safe_escape(line.strip(BLANK_CHARS))}</p>' for line in content.split('\n') if line.strip(BLANK_CHARS)]
         html_parts.append('\n'.join(lines))
         
         return '\n'.join(html_parts)

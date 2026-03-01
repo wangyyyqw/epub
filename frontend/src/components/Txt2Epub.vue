@@ -13,6 +13,10 @@ const epubPath = ref('')
 const title = ref('')
 const author = ref('Unknown')
 const coverPath = ref('')
+const coverSearchResults = ref([])
+const coverSearching = ref(false)
+const showCoverPicker = ref(false)
+const coverDownloading = ref(false)
 const customRegex = ref('')
 const removeEmptyLine = ref(false)
 const fixIndent = ref(false)
@@ -57,6 +61,8 @@ const totalChapters = computed(() => {
 })
 
 const warningCount = computed(() => chapterPreview.value.filter(c => c.hasWarning).length)
+const wordWarningCount = computed(() => chapterPreview.value.filter(c => c.hasWordWarning).length)
+const sequenceWarningCount = computed(() => chapterPreview.value.filter(c => c.sequenceWarning).length)
 
 // --- Helper Functions ---
 const extractNumber = (title) => {
@@ -145,6 +151,50 @@ const selectCoverFile = async () => {
     const path = await window.go.main.App.SelectFile()
     if (path) { coverPath.value = path; toast?.success?.('已选择封面图片') }
   } catch (err) { console.error(err); toast?.error?.('选择封面图片失败') }
+}
+
+const searchDoubanCover = async () => {
+  const query = title.value?.trim()
+  if (!query) { toast?.warning?.('请先填写书名'); return }
+  coverSearching.value = true
+  coverSearchResults.value = []
+  showCoverPicker.value = true
+  try {
+    const raw = await window.go.main.App.SearchDoubanCover(query)
+    const results = JSON.parse(raw)
+    if (!results || results.length === 0) {
+      toast?.warning?.('未找到相关图书')
+      showCoverPicker.value = false
+      return
+    }
+    coverSearchResults.value = results
+    toast?.success?.(`找到 ${results.length} 个结果`)
+  } catch (err) {
+    console.error(err)
+    toast?.error?.('搜索失败: ' + err)
+    showCoverPicker.value = false
+  } finally { coverSearching.value = false }
+}
+
+const selectDoubanCover = async (item) => {
+  if (!item.cover_url) { toast?.error?.('该结果没有封面图片'); return }
+  coverDownloading.value = true
+  try {
+    const raw = await window.go.main.App.DownloadDoubanCover(item.cover_url)
+    const result = JSON.parse(raw)
+    if (result.path) {
+      coverPath.value = result.path
+      showCoverPicker.value = false
+      // 同时自动填充作者
+      if (item.author && (!author.value || author.value === 'Unknown')) {
+        author.value = item.author
+      }
+      toast?.success?.('封面已下载')
+    }
+  } catch (err) {
+    console.error(err)
+    toast?.error?.('下载封面失败: ' + err)
+  } finally { coverDownloading.value = false }
 }
 
 const selectHeaderImage = async () => {
@@ -362,8 +412,55 @@ const buttonSecondaryClass = buttonBaseClass + ' bg-gray-100 dark:bg-gray-700 te
           <div>
             <label class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">封面图片 <span class="text-gray-400 font-normal">（可选）</span></label>
             <div class="flex space-x-2">
-              <input v-model="coverPath" type="text" :class="inputReadonlyClass" placeholder="选择封面图片" readonly @click="selectCoverFile">
+              <input v-model="coverPath" type="text" :class="inputReadonlyClass" placeholder="选择封面图片或从豆瓣搜索" readonly @click="selectCoverFile">
               <button @click="selectCoverFile" :class="buttonSecondaryClass">浏览</button>
+              <button @click="searchDoubanCover" :disabled="coverSearching || !title"
+                :class="['px-4 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1',
+                  coverSearching || !title
+                    ? 'bg-gray-200 dark:bg-gray-700 text-gray-400 cursor-not-allowed'
+                    : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-800/30 focus:ring-amber-400']"
+              >
+                <span v-if="coverSearching" class="flex items-center">
+                  <svg class="animate-spin -ml-0.5 mr-1.5 h-3.5 w-3.5" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                  搜索中
+                </span>
+                <span v-else>豆瓣</span>
+              </button>
+            </div>
+            <!-- Douban Cover Picker -->
+            <div v-if="showCoverPicker && coverSearchResults.length > 0" class="mt-3 p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-600">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-xs font-medium text-gray-500 dark:text-gray-400">选择封面（{{ coverSearchResults.length }} 个结果）</span>
+                <button @click="showCoverPicker = false" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
+              <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-64 overflow-y-auto">
+                <button v-for="item in coverSearchResults" :key="item.id" @click="selectDoubanCover(item)"
+                  :disabled="coverDownloading"
+                  class="flex flex-col items-center p-2 rounded-lg border border-gray-200 dark:border-gray-600 hover:border-indigo-400 dark:hover:border-indigo-500 hover:bg-white dark:hover:bg-gray-800 transition-all cursor-pointer group"
+                >
+                  <img v-if="item.cover_url" :src="item.cover_url" :alt="item.title"
+                    class="w-16 h-22 object-cover rounded shadow-sm mb-1.5 group-hover:shadow-md transition-shadow"
+                    loading="lazy" referrerpolicy="no-referrer"
+                  >
+                  <div v-else class="w-16 h-22 bg-gray-200 dark:bg-gray-700 rounded flex items-center justify-center mb-1.5">
+                    <svg class="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                  </div>
+                  <span class="text-xs text-gray-700 dark:text-gray-300 text-center line-clamp-1 w-full">{{ item.title }}</span>
+                  <span class="text-[10px] text-gray-400 dark:text-gray-500 text-center line-clamp-1 w-full">{{ item.author }}</span>
+                </button>
+              </div>
+              <div v-if="coverDownloading" class="mt-2 text-xs text-indigo-600 dark:text-indigo-400 flex items-center">
+                <svg class="animate-spin mr-1.5 h-3.5 w-3.5" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+                正在下载封面...
+              </div>
             </div>
           </div>
         </div>
@@ -410,6 +507,8 @@ const buttonSecondaryClass = buttonBaseClass + ' bg-gray-100 dark:bg-gray-700 te
           :chapters="chapterPreview"
           :totalChapters="totalChapters"
           :warningCount="warningCount"
+          :wordWarningCount="wordWarningCount"
+          :sequenceWarningCount="sequenceWarningCount"
           :previewLoading="previewLoading"
           :hasPatterns="!!patternsString"
           v-model:enableWordCountCheck="enableWordCountCheck"

@@ -1,6 +1,7 @@
 import re
 import sys
 from typing import List, Tuple, Dict, Any, Optional
+from .text_cleaner import BLANK_CHARS
 
 
 MAX_LEVEL = 99
@@ -10,44 +11,88 @@ class DefaultChapterSplitter:
     """
     Chapter splitter supporting both flat and hierarchical splitting.
     Supports split control per pattern (like SplitChapter plugin).
+    Regex rules adapted from legado (https://github.com/gedoor/legado).
     """
-    
-    # 数字字符类：阿拉伯数字 + 全角数字 + 中文数字
-    _D = r"[\d０-９〇零一二两三四五六七八九十百千万壹贰叁肆伍陆柒捌玖拾佰仟]"
-    # 标题分隔符：空格、中英文标点、中间点等
-    _SEP = r"[\s·、，,：:.\-—–]"
 
+    # 数字字符类
+    _D = r"[\d〇零一二两三四五六七八九十百千万壹贰叁肆伍陆柒捌玖拾佰仟]"
+
+    # ── 基于 legado txtTocRule.json 的预设规则 ──
+    # level: 0=卷/部, 1=章/回, 2=节/小标题
+    # enable=False 的规则仍保留在列表中供扫描，但 suggest_hierarchy 会根据匹配数量自动选择
     PRESET_PATTERNS = [
-        # ── 卷/部/篇/集 (最高层级) ──
-        {"name": "卷/部/篇 (第X卷)", "pattern": rf"^[ 　\t]{{0,4}}第\s{{0,4}}{_D}+?\s{{0,4}}(?:卷|部(?![分赛游])|篇(?!张)|集(?![合和])){_SEP}*.{{0,30}}$", "level": 0, "split": True},
-        {"name": "简单部/集", "pattern": rf"^\s*第{_D}+[部集]{_SEP}*.{{0,30}}$", "level": 0, "split": True},
-
-        # ── 章/节/回 (标准层级) ──
-        {"name": "标准章节 (第X章)", "pattern": rf"^[ 　\t]{{0,4}}第\s{{0,4}}{_D}+?\s{{0,4}}章{_SEP}*.{{0,30}}$", "level": 1, "split": True},
-        {"name": "标准节 (第X节)", "pattern": rf"^[ 　\t]{{0,4}}第\s{{0,4}}{_D}+?\s{{0,4}}节(?!课){_SEP}*.{{0,30}}$", "level": 2, "split": True},
-        {"name": "标准回目 (第X回)", "pattern": rf"^[ 　\t]{{0,4}}第\s{{0,4}}{_D}+?\s{{0,4}}回{_SEP}*.{{0,30}}$", "level": 1, "split": True},
-
-        # ── 特殊章节 ──
-        {"name": "特殊章节 (序章/终章)", "pattern": r"^[ 　\t]{0,4}(?:序章|楔子|引子|引言|正文(?!完|结)|终章|后记|尾声|番外|附录|跋)[\s·、，,：:.\-—–]*.{0,20}$", "level": 1, "split": True},
-        {"name": "简介/前言", "pattern": r"^[ 　\t]{0,4}(?:(?:内容|文章)?简介|文案|前言|自序|代序)[\s·、，,：:.\-—–]*.{0,20}$", "level": 1, "split": True},
-
-        # ── 数字编号 ──
-        {"name": "数字+分隔符 (1、Title)", "pattern": rf"^[ 　\t]{{0,4}}[\d０-９]{{1,5}}{_SEP}.{{1,30}}$", "level": 2, "split": True},
-        {"name": "中文数字+分隔符 (一、Title)", "pattern": r"^[ 　\t]{0,4}[零一二两三四五六七八九十百千万壹贰叁肆伍陆柒捌玖拾佰仟]{1,8}[·、，,：:.\-—– ].{1,30}$", "level": 2, "split": True},
-
-        # ── 英文 ──
-        {"name": "英文 (Chapter N)", "pattern": r"^[ 　\t]{0,4}(?:\d+[\s.]*\s*)?(?:[Cc]hapter|[Ss]ection|[Pp]art|ＰＡＲＴ|[Nn][oO][.、]|[Ee]pisode)\s{0,4}[\d０-９]{1,4}[\s·、，,：:.\-—–]*.{0,30}$", "level": 1, "split": True},
-
-        # ── 特殊符号 ──
-        {"name": "特殊符号封装 (【第一章】)", "pattern": rf"^[ 　\t]{{0,4}}[【〔〖「『〈［\[](?:第|[Cc]hapter){_D}{{1,10}}[章节回]{_SEP}*.{{0,20}}$", "level": 2, "split": True},
-        {"name": "特殊符号引导 (☆、Title)", "pattern": r"^[ 　\t]{0,4}[☆★✦✧◆◇■□▲△●○].{1,30}$", "level": 2, "split": True},
-
-        # ── 书名+编号 ──
-        {"name": "书名+括号数字", "pattern": rf"^[\u4e00-\u9fff]{{1,20}}[ 　\t]{{0,4}}[(（]{_D}{{1,8}}[)）][ 　\t]{{0,4}}$", "level": 2, "split": True},
-        {"name": "书名+数字", "pattern": rf"^[\u4e00-\u9fff]{{1,20}}[ 　\t]{{0,4}}{_D}{{1,8}}[ 　\t]{{0,4}}$", "level": 2, "split": True},
-
-        # ── 分页/分节阅读 (不分割) ──
-        {"name": "分页/分节阅读", "pattern": rf"^[ 　\t]{{0,4}}(?:.{{0,15}}分[页节章段]阅读[-_ ]|第\s{{0,4}}{_D}{{1,6}}\s{{0,4}}[页节]).{{0,30}}$", "level": 2, "split": False},
+        # -2: 目录（legado 默认启用主规则）
+        {
+            "name": "目录 (第X章/节/卷/集/部/篇)",
+            "pattern": rf"^[ 　\t]{{0,4}}(?:序章|楔子|正文(?!完|结)|终章|后记|尾声|番外|第\s{{0,4}}{_D}+?\s{{0,4}}(?:章|节(?!课)|卷|集(?![合和])|部(?![分赛游])|篇(?!张))).{{0,30}}$",
+            "level": 1, "split": True,
+        },
+        # -4: 目录(古典、轻小说备用) — 多了 回/场/话
+        {
+            "name": "目录-古典 (含回/场/话)",
+            "pattern": rf"^[ 　\t]{{0,4}}(?:序章|楔子|正文(?!完|结)|终章|后记|尾声|番外|第\s{{0,4}}{_D}+?\s{{0,4}}(?:章|节(?!课)|卷|集(?![合和])|部(?![分赛游])|回(?![合来事去])|场(?![和合比电是])|话|篇(?!张))).{{0,30}}$",
+            "level": 1, "split": True,
+        },
+        # -8: 数字 分隔符 标题名称
+        {
+            "name": "数字+分隔符 (1、标题)",
+            "pattern": r"^[ 　\t]{0,4}\d{1,5}[:：,.， 、_—\-].{1,30}$",
+            "level": 2, "split": True,
+        },
+        # -9: 大写数字 分隔符 标题名称
+        {
+            "name": "中文数字+分隔符 (一、标题)",
+            "pattern": rf"^[ 　\t]{{0,4}}(?:序章|楔子|正文(?!完|结)|终章|后记|尾声|番外|[零一二两三四五六七八九十百千万壹贰叁肆伍陆柒捌玖拾佰仟]{{1,8}}章?)[ 、_—\-].{{1,30}}$",
+            "level": 2, "split": True,
+        },
+        # -11: 正文 标题/序号
+        {
+            "name": "正文+标题",
+            "pattern": r"^[ 　\t]{0,4}正文[ 　]{1,4}.{0,20}$",
+            "level": 1, "split": True,
+        },
+        # -12: Chapter/Section/Part/Episode 序号 标题
+        {
+            "name": "Chapter/Section/Part/Episode",
+            "pattern": rf"^[ 　\t]{{0,4}}(?:[Cc]hapter|[Ss]ection|[Pp]art|ＰＡＲＴ|[Nn][oO][.、]|[Ee]pisode|(?:内容|文章)?简介|文案|前言|序章|楔子|正文(?!完|结)|终章|后记|尾声|番外)\s{{0,4}}\d{{1,4}}.{{0,30}}$",
+            "level": 1, "split": True,
+        },
+        # -14: 特殊符号 序号 标题 (【第一章 ...)
+        {
+            "name": "特殊符号+序号 (【第X章】)",
+            "pattern": rf"^[ 　\t]{{0,4}}[【〔〖「『〈［\[](?:第|[Cc]hapter){_D}{{1,10}}[章节].{{0,20}}$",
+            "level": 2, "split": True,
+        },
+        # -16: 特殊符号 标题(单个) ☆★✦✧
+        {
+            "name": "特殊符号+标题 (☆、标题)",
+            "pattern": r"^[ 　\t]{0,4}(?:[☆★✦✧].{1,30}|(?:内容|文章)?简介|文案|前言|序章|楔子|正文(?!完|结)|终章|后记|尾声|番外)[ 　]{0,4}$",
+            "level": 2, "split": True,
+        },
+        # -17: 章/卷 序号 标题
+        {
+            "name": "章/卷+序号 (卷五 标题)",
+            "pattern": rf"^[ \t　]{{0,4}}(?:(?:内容|文章)?简介|文案|前言|序章|楔子|正文(?!完|结)|终章|后记|尾声|番外|[卷章]{_D}{{1,8}})[ 　]{{0,4}}.{{0,30}}$",
+            "level": 1, "split": True,
+        },
+        # -21: 书名 括号 序号
+        {
+            "name": "书名+括号序号 (标题(12))",
+            "pattern": rf"^[\u4e00-\u9fa5]{{1,20}}[ 　\t]{{0,4}}[(（]{_D}{{1,8}}[)）][ 　\t]{{0,4}}$",
+            "level": 2, "split": True,
+        },
+        # -22: 书名 序号
+        {
+            "name": "书名+序号 (标题124)",
+            "pattern": rf"^[\u4e00-\u9fa5]{{1,20}}[ 　\t]{{0,4}}{_D}{{1,8}}[ 　\t]{{0,4}}$",
+            "level": 2, "split": True,
+        },
+        # -24: 字数分割 分节阅读
+        {
+            "name": "分页/分节阅读",
+            "pattern": rf"^[ 　\t]{{0,4}}(?:.{{0,15}}分[页节章段]阅读[-_ ]|第\s{{0,4}}{_D}{{1,6}}\s{{0,4}}[页节]).{{0,30}}$",
+            "level": 2, "split": False,
+        },
     ]
 
     def split(self, text: str, custom_pattern: str = None) -> List[Tuple[str, str]]:
@@ -64,7 +109,8 @@ class DefaultChapterSplitter:
 
         pattern_str = custom_pattern
         if not pattern_str:
-            pattern_str = rf"^\s*(?:第[\d０-９〇零一二两三四五六七八九十百千万壹贰叁肆伍陆柒捌玖拾佰仟]+\s*[章节回]|(?:\d+[\s.]*\s*)?[Cc]hapter\s*[\d０-９]+|卷[\d０-９〇零一二两三四五六七八九十百千万壹贰叁肆伍陆柒捌玖拾佰仟]+)[\s·、，,：:.\-—–]*.*$"
+            # Default pattern aligned with legado's main tocRule
+            pattern_str = r"^[ 　\t]{0,4}(?:序章|楔子|正文(?!完|结)|终章|后记|尾声|番外|第\s{0,4}[\d〇零一二两三四五六七八九十百千万壹贰叁肆伍陆柒捌玖拾佰仟]+?\s{0,4}(?:章|节(?!课)|卷|集(?![合和])|部(?![分赛游])|篇(?!张))).{0,30}$"
 
         chapter_pattern = re.compile(pattern_str, re.M)
         matches = list(chapter_pattern.finditer(text))
@@ -75,15 +121,15 @@ class DefaultChapterSplitter:
         chapters = []
         
         if matches[0].start() > 0:
-            preamble = text[:matches[0].start()].strip()
+            preamble = text[:matches[0].start()].strip(BLANK_CHARS)
             if preamble:
                 chapters.append(("前言", preamble))
                 
         for i, match in enumerate(matches):
-            title = match.group().strip()
+            title = match.group().strip(BLANK_CHARS)
             start = match.end()
             end = matches[i+1].start() if (i + 1) < len(matches) else len(text)
-            content = text[start:end].strip()
+            content = text[start:end].strip(BLANK_CHARS)
             chapters.append((title, content))
             
         return chapters
@@ -139,7 +185,7 @@ class DefaultChapterSplitter:
             result = []
             
             if matches[0].start() > 0:
-                preamble = content[:matches[0].start()].strip()
+                preamble = content[:matches[0].start()].strip(BLANK_CHARS)
                 if preamble and pattern_idx == 0:
                     result.append({
                         "title": "前言",
@@ -149,10 +195,10 @@ class DefaultChapterSplitter:
                     })
             
             for i, match in enumerate(matches):
-                title = match.group().strip()
+                title = match.group().strip(BLANK_CHARS)
                 start = match.end()
                 end = matches[i+1].start() if (i + 1) < len(matches) else len(content)
-                section_content = content[start:end].strip()
+                section_content = content[start:end].strip(BLANK_CHARS)
                 
                 children = split_level(section_content, pattern_idx + 1)
                 
@@ -161,7 +207,7 @@ class DefaultChapterSplitter:
                     escaped_title = re.escape(first_child_title)
                     child_match = re.search(f'^\\s*{escaped_title}', section_content, re.M)
                     if child_match and child_match.start() > 0:
-                        remaining_content = section_content[:child_match.start()].strip()
+                        remaining_content = section_content[:child_match.start()].strip(BLANK_CHARS)
                     else:
                         remaining_content = ""
                 else:
@@ -205,8 +251,8 @@ class DefaultChapterSplitter:
                         "name": preset["name"],
                         "pattern": preset["pattern"],
                         "count": len(matches),
-                        "chapters": [m.group(0).strip() for m in matches],
-                        "example": matches[0].group(0).strip(),
+                        "chapters": [m.group(0).strip(BLANK_CHARS) for m in matches],
+                        "example": matches[0].group(0).strip(BLANK_CHARS),
                         "suggested_level": preset["level"],
                         "split": preset.get("split", True)
                     })

@@ -8,7 +8,8 @@ from core.plugin_base import BasePlugin
 from core.utils import detect_encoding
 from .chapter_splitter import DefaultChapterSplitter
 from .epub_creator import create_epub
-from .text_cleaner import TextCleaner
+from .text_cleaner import TextCleaner, BLANK_CHARS
+from .douban_cover import search_books, download_cover
 
 class TxtToEpubPlugin(BasePlugin):
     @property
@@ -49,6 +50,10 @@ class TxtToEpubPlugin(BasePlugin):
         
         # Scan mode
         parser.add_argument("--scan", action='store_true', help="Scan only mode, returns JSON")
+        
+        # Douban cover search
+        parser.add_argument("--search-cover", default=None, help="Search Douban for book cover by title")
+        parser.add_argument("--download-cover", default=None, help="Download cover from URL, returns local path")
 
     def _parse_pattern(self, p: str) -> Tuple[str, int, bool]:
         """
@@ -84,6 +89,26 @@ class TxtToEpubPlugin(BasePlugin):
             return p, 1, True
 
     def run(self, args: argparse.Namespace):
+        # Douban cover search mode (no file needed)
+        if args.search_cover:
+            try:
+                results = search_books(args.search_cover)
+                print(json.dumps(results, ensure_ascii=False))
+            except Exception as e:
+                print(f"ERROR: 搜索失败: {e}", file=sys.stderr)
+                sys.exit(1)
+            return
+
+        # Douban cover download mode
+        if args.download_cover:
+            try:
+                local_path = download_cover(args.download_cover)
+                print(json.dumps({"path": local_path}, ensure_ascii=False))
+            except Exception as e:
+                print(f"ERROR: 下载封面失败: {e}", file=sys.stderr)
+                sys.exit(1)
+            return
+
         if not os.path.exists(args.txt_path):
             print(f"ERROR: Input file not found: {args.txt_path}", file=sys.stderr)
             sys.exit(1)
@@ -121,10 +146,10 @@ class TxtToEpubPlugin(BasePlugin):
                         start = m.end()
                         end = matches[i+1].start() if i+1 < len(matches) else len(content)
                         section = content[start:end]
-                        word_count = len(section.strip())
+                        word_count = len(section.strip(BLANK_CHARS))
                         word_counts.append(word_count)
                         chapter_details.append({
-                            "title": m.group().strip(),
+                            "title": m.group().strip(BLANK_CHARS),
                             "word_count": word_count
                         })
                     r["word_counts"] = word_counts

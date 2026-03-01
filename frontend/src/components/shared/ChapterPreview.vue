@@ -3,6 +3,8 @@ defineProps({
   chapters: { type: Array, required: true },
   totalChapters: { type: Number, default: 0 },
   warningCount: { type: Number, default: 0 },
+  wordWarningCount: { type: Number, default: 0 },
+  sequenceWarningCount: { type: Number, default: 0 },
   previewLoading: { type: Boolean, default: false },
   hasPatterns: { type: Boolean, default: false },
   enableWordCountCheck: { type: Boolean, default: true },
@@ -48,15 +50,17 @@ const emit = defineEmits(['refresh', 'update:enableWordCountCheck', 'update:enab
     <div class="flex items-center justify-between">
       <div>
         <h2 class="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">目录预览</h2>
-        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-          预览识别到的章节结构
-          <span v-if="totalChapters > 0" class="text-indigo-600 dark:text-indigo-400 font-medium">
-            (共 {{ totalChapters }} 章)
+        <div class="flex flex-wrap items-center gap-2 mt-1">
+          <span v-if="totalChapters > 0" class="text-sm text-indigo-600 dark:text-indigo-400 font-medium">
+            共 {{ totalChapters }} 章
           </span>
-          <span v-if="warningCount > 0" class="text-amber-600 dark:text-amber-400 font-medium ml-2">
-            ⚠️ {{ warningCount }} 个警告
-          </span>
-        </p>
+          <span v-if="wordWarningCount > 0"
+            class="inline-flex items-center text-xs px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 font-medium"
+          >📏 字数过大 {{ wordWarningCount }}</span>
+          <span v-if="sequenceWarningCount > 0"
+            class="inline-flex items-center text-xs px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 font-medium"
+          >🔀 断序 {{ sequenceWarningCount }}</span>
+        </div>
       </div>
       <button @click="$emit('refresh')" :disabled="previewLoading || !hasPatterns"
         :class="[
@@ -85,13 +89,14 @@ const emit = defineEmits(['refresh', 'update:enableWordCountCheck', 'update:enab
       暂无章节预览，请点击「刷新预览」
     </div>
 
-    <!-- Chapter List -->
+    <!-- Chapter Items -->
     <div v-else class="max-h-96 overflow-y-auto border border-gray-100 dark:border-gray-700 rounded-lg">
       <div class="divide-y divide-gray-50 dark:divide-gray-700">
         <div v-for="(chapter, index) in chapters" :key="index"
           :class="[
             'flex items-center px-4 py-2.5 transition-colors',
-            chapter.hasWarning ? 'bg-amber-50 dark:bg-amber-900/20' : '',
+            chapter.sequenceWarning ? 'bg-red-50 dark:bg-red-900/10' : '',
+            !chapter.sequenceWarning && chapter.hasWordWarning ? 'bg-amber-50 dark:bg-amber-900/20' : '',
             !chapter.hasWarning && chapter.level === 0 ? 'bg-indigo-50/50 dark:bg-indigo-900/10' : '',
             !chapter.hasWarning && chapter.level >= 2 ? 'bg-gray-50/50 dark:bg-gray-800/50' : '',
             'hover:bg-gray-100 dark:hover:bg-gray-700/50'
@@ -99,7 +104,8 @@ const emit = defineEmits(['refresh', 'update:enableWordCountCheck', 'update:enab
         >
           <div :class="[
             'w-6 h-6 rounded flex items-center justify-center text-xs font-bold mr-3 flex-shrink-0',
-            chapter.hasWarning ? 'bg-amber-200 dark:bg-amber-800 text-amber-700 dark:text-amber-300' : '',
+            chapter.sequenceWarning ? 'bg-red-200 dark:bg-red-800 text-red-700 dark:text-red-300' : '',
+            !chapter.sequenceWarning && chapter.hasWordWarning ? 'bg-amber-200 dark:bg-amber-800 text-amber-700 dark:text-amber-300' : '',
             !chapter.hasWarning && chapter.level === 0 ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400' : '',
             !chapter.hasWarning && chapter.level === 1 ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' : '',
             !chapter.hasWarning && chapter.level >= 2 ? 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400' : ''
@@ -109,7 +115,8 @@ const emit = defineEmits(['refresh', 'update:enableWordCountCheck', 'update:enab
           
           <span :class="[
             'text-sm truncate flex-1',
-            chapter.hasWarning ? 'text-amber-700 dark:text-amber-300 font-medium' : '',
+            chapter.sequenceWarning ? 'text-red-700 dark:text-red-300 font-medium' : '',
+            !chapter.sequenceWarning && chapter.hasWordWarning ? 'text-amber-700 dark:text-amber-300 font-medium' : '',
             !chapter.hasWarning && chapter.level === 0 ? 'font-semibold text-gray-900 dark:text-white' : '',
             !chapter.hasWarning && chapter.level === 1 ? 'font-medium text-gray-800 dark:text-gray-200' : '',
             !chapter.hasWarning && chapter.level >= 2 ? 'text-gray-600 dark:text-gray-400' : ''
@@ -125,15 +132,13 @@ const emit = defineEmits(['refresh', 'update:enableWordCountCheck', 'update:enab
                 : 'text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-700'
             ]"
           >
-            {{ chapter.wordCount.toLocaleString() }} 字
+            {{ chapter.hasWordWarning ? '📏 ' : '' }}{{ chapter.wordCount.toLocaleString() }} 字
           </span>
           
           <span v-if="chapter.sequenceWarning"
-            class="text-xs px-2 py-0.5 rounded ml-2 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 flex-shrink-0"
+            class="text-xs px-2 py-0.5 rounded ml-2 bg-red-200 dark:bg-red-900/40 text-red-700 dark:text-red-300 font-medium flex-shrink-0"
             :title="chapter.sequenceDetail"
-          >
-            ⚠️ 断序
-          </span>
+          >🔀 {{ chapter.sequenceDetail }}</span>
           
           <span class="text-xs text-gray-400 dark:text-gray-500 ml-2 flex-shrink-0">
             #{{ index + 1 }}
