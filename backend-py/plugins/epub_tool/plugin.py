@@ -36,6 +36,9 @@ class EpubToolPlugin(BasePlugin):
         parser.add_argument("--target-xhtml-files", nargs='*', help="Target XHTML files to process")
         parser.add_argument("--input-paths", nargs='*', help="Multiple input EPUB file paths (for merge)")
         parser.add_argument("--split-points", help="Comma-separated split point indices")
+        parser.add_argument("--jpeg-quality", type=int, default=85, help="JPEG compression quality (1-100)")
+        parser.add_argument("--webp-quality", type=int, default=80, help="WebP compression quality (1-100)")
+        parser.add_argument("--png-to-jpg", choices=["true", "false"], default="true", help="Convert non-transparent PNG to JPG")
 
     def run(self, args: argparse.Namespace):
         # merge uses --input-paths, other operations use --input-path
@@ -89,7 +92,12 @@ class EpubToolPlugin(BasePlugin):
             elif args.operation == "font_subset":
                 result = font_subset.run_epub_font_subset(args.input_path, output_dir)
             elif args.operation == "img_compress":
-                result = img_compress.run(args.input_path, output_dir)
+                result = img_compress.run(
+                    args.input_path, output_dir,
+                    jpeg_quality=args.jpeg_quality,
+                    webp_quality=args.webp_quality,
+                    png_to_jpg=(args.png_to_jpg == "true")
+                )
             elif args.operation == "img_to_webp":
                 result = img_to_webp.run(args.input_path, output_dir)
             elif args.operation == "webp_to_img":

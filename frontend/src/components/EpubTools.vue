@@ -39,6 +39,11 @@ const splitTargets = ref([])
 const selectedSplitPoints = ref([])
 const showSplitTargetSelector = ref(false)
 
+// Image compress options
+const jpegQuality = ref(85)
+const webpQuality = ref(80)
+const pngToJpg = ref(true)
+
 watch(() => props.activeTool, (newVal) => {
   if (newVal) {
     selectedOperation.value = newVal
@@ -48,6 +53,7 @@ watch(() => props.activeTool, (newVal) => {
     selectedFontFamilies.value = []; selectedXhtmlFiles.value = []; showFontTargetSelector.value = false
     opfContent.value = ''; mergeFiles.value = []
     splitTargets.value = []; selectedSplitPoints.value = []; showSplitTargetSelector.value = false
+    jpegQuality.value = 85; webpQuality.value = 80; pngToJpg.value = true
   }
 }, { immediate: true })
 
@@ -62,7 +68,7 @@ const operationsMap = {
   view_opf: { label: 'OPF 查看', desc: '查看 EPUB 的 OPF 文件内容和内部结构', details: '从 EPUB 中提取 OPF 文件内容，以格式化 XML 形式展示，同时列出 EPUB 内部文件结构。', category: 'format' },
   merge_epub: { label: '合并 EPUB', desc: '将多个 EPUB 文件合并为一个', details: '按指定顺序合并多个 EPUB 文件，自动处理资源冲突和目录合并。支持拖拽排序调整合并顺序。', category: 'format' },
   split_epub: { label: '拆分 EPUB', desc: '按章节将 EPUB 拆分为多个文件', details: '扫描 EPUB 章节结构，选择拆分点后生成多个独立的 EPUB 文件。', category: 'format' },
-  img_compress: { label: '图片压缩', desc: '压缩 EPUB 中所有图片的体积', details: '在保持可接受画质的前提下压缩图片，有效减小 EPUB 文件大小。', category: 'image' },
+  img_compress: { label: '图片压缩', desc: '压缩 EPUB 中所有图片的体积', details: '支持 JPEG/PNG/WebP/BMP 全格式压缩。可调节 JPEG 和 WebP 的压缩质量，无透明度的 PNG 可转为 JPG 大幅减小体积，有透明度的 PNG 自动转为 PNG-8 二值透明。', category: 'image', hasCompressOptions: true },
   convert_image_format: { label: '图片格式转换', desc: '在图片和 WebP 格式之间互转', details: 'WebP 格式可大幅减小体积，传统图片格式兼容性更好。', category: 'image', hasMode: true, modes: [{ value: 'img_to_webp', label: '图片 → WebP' }, { value: 'webp_to_img', label: 'WebP → 图片' }] },
   phonetic: { label: '生僻字注音', desc: '为 EPUB 中的生僻字添加拼音注音', details: '自动识别生僻字并添加 Ruby 拼音标注，方便阅读生僻汉字。', category: 'annotate' },
   comment: { label: '正则匹配→弹窗', desc: '用正则表达式匹配文本并转为弹窗注释', details: '将匹配到的注释内容转换为多看/Kindle 支持的弹窗式注释，点击即可查看。', category: 'annotate', hasRegex: true },
@@ -76,6 +82,7 @@ const currentToolInfo = computed(() => operationsMap[selectedOperation.value] ||
 const needsFontPath = computed(() => selectedOperation.value === 'encrypt_font')
 const needsRegex = computed(() => operationsMap[selectedOperation.value]?.hasRegex)
 const needsMode = computed(() => operationsMap[selectedOperation.value]?.hasMode)
+const needsCompressOptions = computed(() => operationsMap[selectedOperation.value]?.hasCompressOptions)
 const selectedMode = ref('')
 
 watch(selectedOperation, (val) => {
@@ -279,6 +286,9 @@ const runTool = async () => {
     if (['convert_chinese', 'convert_image_format'].includes(selectedOperation.value)) {
       const opIndex = args.indexOf('--operation'); if (opIndex > -1) args[opIndex + 1] = selectedMode.value
     } else if (selectedOperation.value === 'convert_version') { args.push('--target-version', selectedMode.value) }
+    if (selectedOperation.value === 'img_compress') {
+      args.push('--jpeg-quality', String(jpegQuality.value), '--webp-quality', String(webpQuality.value), '--png-to-jpg', pngToJpg.value ? 'true' : 'false')
+    }
     try {
       const result = await window.go.main.App.RunBackend(args)
       if (result.stderr) outputLog.value += result.stderr + '\n'
@@ -413,6 +423,43 @@ const clearLog = () => { outputLog.value = '' }
           <input v-model="regexPattern" type="text" :class="inputBaseClass + ' font-mono'"
             :placeholder="selectedOperation === 'footnote_conv' ? '默认: \\[(\\d+)\\] 或 #.+' : '默认: \\[(.*?)\\]'">
           <p class="text-xs text-gray-400 mt-2">留空将使用默认正则表达式。</p>
+        </div>
+      </div>
+
+      <!-- Image Compress Options -->
+      <div v-if="needsCompressOptions" class="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-100 dark:border-gray-700 space-y-5 animate-slide-in">
+        <h2 class="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">压缩选项</h2>
+        <div class="space-y-4">
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <label class="text-sm font-medium text-gray-700 dark:text-gray-300">JPEG 质量</label>
+              <span class="text-sm font-mono text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 px-2 py-0.5 rounded">{{ jpegQuality }}</span>
+            </div>
+            <input type="range" v-model.number="jpegQuality" min="10" max="100" step="5"
+              class="w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-indigo-600">
+            <div class="flex justify-between text-xs text-gray-400 mt-1"><span>10 (最小)</span><span>100 (最高)</span></div>
+          </div>
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <label class="text-sm font-medium text-gray-700 dark:text-gray-300">WebP 质量</label>
+              <span class="text-sm font-mono text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 px-2 py-0.5 rounded">{{ webpQuality }}</span>
+            </div>
+            <input type="range" v-model.number="webpQuality" min="10" max="100" step="5"
+              class="w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-indigo-600">
+            <div class="flex justify-between text-xs text-gray-400 mt-1"><span>10 (最小)</span><span>100 (最高)</span></div>
+          </div>
+          <div class="flex items-center justify-between">
+            <div>
+              <label class="text-sm font-medium text-gray-700 dark:text-gray-300">PNG 转 JPG</label>
+              <p class="text-xs text-gray-400 mt-0.5">无透明度的 PNG 转为 JPG 可大幅减小体积</p>
+            </div>
+            <button @click="pngToJpg = !pngToJpg"
+              :class="['relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200',
+                pngToJpg ? 'bg-indigo-600' : 'bg-gray-300 dark:bg-gray-600']">
+              <span :class="['inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 shadow-sm',
+                pngToJpg ? 'translate-x-6' : 'translate-x-1']" />
+            </button>
+          </div>
         </div>
       </div>
 

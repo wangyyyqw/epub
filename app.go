@@ -315,3 +315,24 @@ func (a *App) OpenURL(url string) error {
 	return cmd.Start()
 }
 
+// SearchDoubanCover searches Douban for book covers by title.
+// Returns JSON string with search results.
+func (a *App) SearchDoubanCover(title string) (string, error) {
+	args := []string{"--plugin", "txt2epub", "--txt-path", "/dev/null", "--epub-path", "/dev/null", "--title", "search", "--search-cover", title}
+	result, err := a.RunBackend(args)
+	if err != nil {
+		return "", fmt.Errorf("搜索封面失败: %s", err)
+	}
+	return result.Stdout, nil
+}
+
+// DownloadDoubanCover downloads a cover image from URL and returns the local path.
+func (a *App) DownloadDoubanCover(coverURL string) (string, error) {
+	args := []string{"--plugin", "txt2epub", "--txt-path", "/dev/null", "--epub-path", "/dev/null", "--title", "download", "--download-cover", coverURL}
+	result, err := a.RunBackend(args)
+	if err != nil {
+		return "", fmt.Errorf("下载封面失败: %s", err)
+	}
+	return result.Stdout, nil
+}
+
